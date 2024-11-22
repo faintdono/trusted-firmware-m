@@ -10,13 +10,13 @@
         [
             {
                 "name": "TFM_POX",
-                # "sid": "0x00000080",
-                # "non_secure_clients": true,
-                # "connection_based": false,
-                # "stateless_handle": 1,
-                # "version": 1,
-                # "version_policy": "STRICT",
-                # "mm_iovec": "enable",
+                "sid": "0xAAAAA001",
+                "non_secure_clients": true,
+                "connection_based": false,
+                "stateless_handle": 1,
+                "version": 1,
+                "version_policy": "STRICT",
+                "mm_iovec": "enable",
             },
         ],
     "dependencies":[

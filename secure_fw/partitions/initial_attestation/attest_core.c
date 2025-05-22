@@ -815,7 +815,7 @@ proof_of_execute(uintptr_t faddr,
 
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   faddr);
-    attest_err = attest_add_execute_value(&attest_token_ctx,
+    attest_err = attest_add_execution_value(&attest_token_ctx,
                                           execute_value);
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);

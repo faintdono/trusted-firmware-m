@@ -9,6 +9,8 @@
 #include "psa/client.h"
 #include "psa_manifest/sid.h"
 #include "tfm_attest_defs.h"
+#include "tfm_pox_wire.h"
+#include <stdio.h>
 
 psa_status_t
 psa_initial_attest_get_token(const uint8_t *auth_challenge,
@@ -18,7 +20,7 @@ psa_initial_attest_get_token(const uint8_t *auth_challenge,
                              size_t        *token_size)
 {
     psa_status_t status;
-
+    
     psa_invec in_vec[] = {
         {auth_challenge, challenge_size}
     };
@@ -65,6 +67,25 @@ psa_proof_of_execution_get_token(uintptr_t *faddr,
                                  size_t        *token_size)
 {
     psa_status_t status;
+    uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
+    size_t  inlen = 0;
+    
+    /* Mock up missing variables */
+    const uint8_t *input_bytes = NULL;
+    uint32_t input_len = 0;
+
+    ns_pox_call_req_t r = {
+        .challenge = auth_challenge,
+        .challenge_len = challenge_size,   /* 32..64 */
+        .function_addr = (uintptr_t)faddr,    /* Cast pointer to uintptr_t */
+        .input = input_bytes,
+        .input_len = input_len,
+    };
+
+    if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
+        /* handle error */
+    };
+    printf("%u",(unsigned int)r.function_addr);
 
     psa_invec in_vec[] = {
         {faddr, sizeof(faddr)},

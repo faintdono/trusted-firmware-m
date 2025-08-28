@@ -264,7 +264,7 @@ void import_fixed_key(psa_key_handle_t key_handle) {
         0x4B, 0x92, 0xA1, 0x93, 0x71, 0x34, 0x58, 0x5F
     };
 
-    status = psa_import_key(&attributes, fixed_private_key, sizeof(fixed_private_key), key_handle);
+    status = psa_import_key(&attributes, fixed_private_key, sizeof(fixed_private_key), &key_handle);
     if (status != PSA_SUCCESS) {
         SPMLOG_ERRMSGVAL("[OAK] Key import failed with status: ", status);
     } else {

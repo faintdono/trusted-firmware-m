@@ -11,6 +11,7 @@
 #include "tfm_attest_defs.h"
 #include "tfm_pox_wire.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 psa_status_t
 psa_initial_attest_get_token(const uint8_t *auth_challenge,
@@ -59,7 +60,7 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
 }
 
 psa_status_t
-psa_proof_of_execution_get_token(uintptr_t *faddr,
+psa_proof_of_execution_get_token(uintptr_t faddr,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
                                  uint8_t       *token_buf,
@@ -67,29 +68,37 @@ psa_proof_of_execution_get_token(uintptr_t *faddr,
                                  size_t        *token_size)
 {
     psa_status_t status;
-    uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
-    size_t  inlen = 0;
     
     /* Mock up missing variables */
     const uint8_t *input_bytes = NULL;
     uint32_t input_len = 0;
 
-    ns_pox_call_req_t r = {
-        .challenge = auth_challenge,
-        .challenge_len = challenge_size,   /* 32..64 */
-        .function_addr = (uintptr_t)faddr,    /* Cast pointer to uintptr_t */
-        .input = input_bytes,
-        .input_len = input_len,
+    ns_pox_call_req_t req = {
+        .challenge     = auth_challenge,
+        .challenge_len = challenge_size,
+        .function_addr = (uintptr_t)faddr,             /* treated as selector */
+        .input         = input_bytes,
+        .input_len     = input_len,
+        .add_crc32     = true,
     };
 
-    if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
+    size_t needed = 0;
+    if (pox_measure_ns_call(&req, &needed) != SER_OK) {
+        // handle error
+    }
+
+    /* Allocate EXACTLY the needed size (heap or static pool) */
+    uint8_t *inbuf = (uint8_t *)malloc(needed);
+    size_t   inlen = 0;
+
+    if (serialize_ns_pox_call(&req, inbuf, needed, &inlen) != SER_OK) {
         /* handle error */
     };
-    printf("%u",(unsigned int)r.function_addr);
-
+    printf("ptr=%p cap=%zu len=%zu\n", (void*)inbuf, needed, inlen);
     psa_invec in_vec[] = {
-        {faddr, sizeof(faddr)},
-        {auth_challenge, challenge_size}
+        {&faddr, sizeof(faddr)},
+        {auth_challenge, challenge_size},
+        {inbuf, inlen}
     };
     psa_outvec out_vec[] = {
         {token_buf, token_buf_size}
@@ -97,10 +106,9 @@ psa_proof_of_execution_get_token(uintptr_t *faddr,
     status = psa_call(TFM_ATTESTATION_SERVICE_HANDLE, TFM_ATTEST_GET_POX,
                       in_vec, IOVEC_LEN(in_vec),
                       out_vec, IOVEC_LEN(out_vec));
-
     if (status == PSA_SUCCESS) {
         *token_size = out_vec[0].len;
     }
-
+    free(inbuf);
     return status;
 }

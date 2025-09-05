@@ -18,6 +18,8 @@
 #include "psa/service.h"
 #include "psa_manifest/tfm_initial_attestation.h"
 #include "tfm_attest_defs.h"
+#include "tfm_pox_wire.h"
+#include "attest_execute.h"
 
 #define ECC_P256_PUBLIC_KEY_SIZE PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256)
 
@@ -141,9 +143,12 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     size_t token_buff_size;
     size_t token_size;
     uintptr_t faddr;
+    uint8_t in_buff[256];
+    size_t in_buff_size;
 
     fadd_size = msg->in_size[0];
     challenge_size = msg->in_size[1];
+    in_buff_size = msg->in_size[2];
     token_buff_size = (msg->out_size[0] < sizeof(token_buff)) ? msg->out_size[0] : sizeof(token_buff);
 
     if ((challenge_size > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64) || (challenge_size == 0) || (token_buff_size == 0))
@@ -163,13 +168,27 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     {
         return PSA_ERROR_GENERIC_ERROR;
     }
+    bytes_read = psa_read(msg->handle, 2, in_buff, in_buff_size);
+    if (bytes_read != in_buff_size)
+    {
+        return PSA_ERROR_GENERIC_ERROR;
+    }
 
-    status = proof_of_execution(&faddr, challenge_buff, challenge_size, token_buff, token_buff_size, &token_size);
+    sec_pox_view_t view;
+    ser_status_t st = deserialize_ns_pox_call(in_buff, in_buff_size, &view);
+    printf("ser status: %d \n",st);
+    printf("SECURE in_buff_size: %d\n",in_buff_size);
+    if (st == SER_OK) {
+    printf("POX call received:\n");
+                        printf(" - Challenge len = %u\n", view.challenge_len);
+                        printf(" - Func addr ID = 0x%x\n", view.function_addr_le32);
+                        printf(" - Input len    = %u\n", view.input_len);
+    }
+    status = proof_of_execution(faddr, challenge_buff, challenge_size, token_buff, token_buff_size, &token_size);
     if (status == PSA_SUCCESS)
     {
         psa_write(msg->handle, 0, token_buff, token_size);
     }
-
     return status;
 }
 

@@ -486,11 +486,11 @@ attest_add_nonce_claim(struct attest_token_encode_ctx *token_ctx,
  */
 static enum psa_attest_err_t
 attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
-                 const uintptr_t *faddr)
+                 const struct q_useful_buf_c *faddr)
 {
-    attest_token_encode_add_integer(token_ctx,
+    attest_token_encode_add_bstr(token_ctx,
                                     IAT_POX_FADDR,
-                                    (int64_t)faddr);
+                                    faddr);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
@@ -505,7 +505,7 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
  */
 static enum psa_attest_err_t
 attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
-                 const int *execution_value)
+                 const int execution_value)
 {
     attest_token_encode_add_integer(token_ctx,
                                     IAT_POX_OUT,
@@ -778,7 +778,7 @@ error:
 }
 
 static enum psa_attest_err_t
-pox_create_token(uintptr_t *faddr,
+pox_create_token(struct q_useful_buf_c *faddr,
                  struct q_useful_buf_c *challenge,
                  struct q_useful_buf *token,
                  struct q_useful_buf_c *completed_token)
@@ -811,14 +811,18 @@ pox_create_token(uintptr_t *faddr,
         goto error;
     }
     
-    execute_value = ns_execute(*faddr);
+    execute_value = ns_execute((uintptr_t)faddr->ptr);
+    LOG_INFFMT("[Secure] INFO: BEFORE ADD FADDR: %x\n", (uintptr_t)faddr->ptr);
 
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   faddr);
+    
     attest_err = attest_add_execution_value(&attest_token_ctx,
                                           execute_value);
+
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
+    LOG_INFFMT("[Secure] INFO: AFTER ADD Nonce value: %d\n", challenge);
 
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
@@ -834,11 +838,14 @@ pox_create_token(uintptr_t *faddr,
             goto error;
         }
     }
+    LOG_INFFMT("[Secure] INFO: Final check \n");
 
     /* Finish up creating the token. This is where the actual signature
      * is generated. This finishes up the CBOR encoding too.
      */
     token_err = attest_token_encode_finish(&attest_token_ctx, completed_token);
+    LOG_INFFMT("[Secure] INFO: Finish encode \n");
+
     attest_err = error_mapping_to_psa_attest_err_t(token_err);
 
 error:
@@ -846,7 +853,7 @@ error:
 }
 
 psa_status_t
-proof_of_execution(uintptr_t *faddr, const void *challenge_buf, size_t challenge_size,
+proof_of_execution(uintptr_t faddr, const void *challenge_buf, size_t challenge_size,
                          void *token_buf, size_t token_buf_size,
                          size_t *token_size)
 {
@@ -854,7 +861,10 @@ proof_of_execution(uintptr_t *faddr, const void *challenge_buf, size_t challenge
     struct q_useful_buf_c challenge;
     struct q_useful_buf token;
     struct q_useful_buf_c completed_token;
+    struct q_useful_buf_c q_faddr;
 
+    q_faddr.ptr = faddr;
+    q_faddr.len = sizeof(faddr);
     challenge.ptr = challenge_buf;
     challenge.len = challenge_size;
     token.ptr = token_buf;
@@ -871,8 +881,8 @@ proof_of_execution(uintptr_t *faddr, const void *challenge_buf, size_t challenge
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
-
-    attest_err = pox_create_token(faddr, &challenge, &token, &completed_token);
+    LOG_INFFMT("[Secure] INFO: POX CREATE TOKEN with: 0x%x\n", faddr);
+    attest_err = pox_create_token(&q_faddr, &challenge, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;

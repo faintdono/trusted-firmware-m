@@ -778,7 +778,7 @@ error:
 }
 
 static enum psa_attest_err_t
-pox_create_token(uintptr_t *faddr,
+pox_create_token(uintptr_t faddr,
                  struct q_useful_buf_c *challenge,
                  struct q_useful_buf *token,
                  struct q_useful_buf_c *completed_token)
@@ -810,8 +810,9 @@ pox_create_token(uintptr_t *faddr,
         attest_err = error_mapping_to_psa_attest_err_t(token_err);
         goto error;
     }
-    
-    execute_value = ns_execute(*faddr);
+    LOG_INFFMT("[Secure] INFO: Non-secure function: x0%x\n", faddr);
+
+    execute_value = ns_execute(faddr);
 
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   faddr);
@@ -846,7 +847,7 @@ error:
 }
 
 psa_status_t
-proof_of_execution(uintptr_t *faddr, const void *challenge_buf, size_t challenge_size,
+proof_of_execution(uintptr_t faddr, const void *challenge_buf, size_t challenge_size,
                          void *token_buf, size_t token_buf_size,
                          size_t *token_size)
 {

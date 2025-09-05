@@ -164,7 +164,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_GENERIC_ERROR;
     }
 
-    status = proof_of_execution(&faddr, challenge_buff, challenge_size, token_buff, token_buff_size, &token_size);
+    status = proof_of_execution(faddr, challenge_buff, challenge_size, token_buff, token_buff_size, &token_size);
     if (status == PSA_SUCCESS)
     {
         psa_write(msg->handle, 0, token_buff, token_size);

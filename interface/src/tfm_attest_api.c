@@ -59,7 +59,7 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
 }
 
 psa_status_t
-psa_proof_of_execution_get_token(uintptr_t *faddr,
+psa_proof_of_execution_get_token(uintptr_t faddr,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
                                  uint8_t       *token_buf,
@@ -85,10 +85,9 @@ psa_proof_of_execution_get_token(uintptr_t *faddr,
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
         /* handle error */
     };
-    printf("%u",(unsigned int)r.function_addr);
 
     psa_invec in_vec[] = {
-        {faddr, sizeof(faddr)},
+        {&faddr, sizeof(faddr)},
         {auth_challenge, challenge_size}
     };
     psa_outvec out_vec[] = {

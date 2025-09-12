@@ -18,6 +18,7 @@
 #include "psa/service.h"
 #include "psa_manifest/tfm_initial_attestation.h"
 #include "tfm_attest_defs.h"
+#include "tfm_pox_wire.h"
 
 #define ECC_P256_PUBLIC_KEY_SIZE PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256)
 
@@ -134,42 +135,47 @@ static psa_status_t psa_attest_get_token_size(const psa_msg_t *msg)
 static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
 {
     psa_status_t status = PSA_SUCCESS;
-    uint8_t challenge_buff[PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64];
     uint32_t bytes_read = 0;
-    size_t fadd_size;
-    size_t challenge_size;
     size_t token_buff_size;
     size_t token_size;
-    uintptr_t faddr;
+    size_t inbuf_size;
 
-    fadd_size = msg->in_size[0];
-    challenge_size = msg->in_size[1];
+    /* --- stack-based receive buffer (aligned) --- */
+    __attribute__((aligned(4))) uint8_t inbuf[128];
+
+    inbuf_size = msg->in_size[0];
     token_buff_size = (msg->out_size[0] < sizeof(token_buff)) ? msg->out_size[0] : sizeof(token_buff);
 
-    if ((challenge_size > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64) || (challenge_size == 0) || (token_buff_size == 0))
+    /* store the client ID here for later use in service */
+    g_attest_caller_id = msg->client_id;
+    bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
+    if (bytes_read != inbuf_size)
+    {
+        return PSA_ERROR_GENERIC_ERROR;
+    }
+
+    sec_pox_view_t view;
+    ser_status_t st = deserialize_ns_pox_call(inbuf, inbuf_size, &view);
+    printf("ser status: %d \n",st);
+    printf("SECURE in_buff_size: %d\n",inbuf_size);
+    if (st == SER_OK) {
+    printf("POX call received:\n");
+                        printf(" - Challenge len = %u\n", view.challenge_len);
+                        printf(" - Func addr ID = 0x%x\n", view.function_addr_le32);
+                        printf(" - Input len    = %u\n", view.input_len);
+    }
+
+    if ((view.challenge_len > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64) || (view.challenge_len == 0) || (token_buff_size == 0))
     {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    /* store the client ID here for later use in service */
-    g_attest_caller_id = msg->client_id;
-    bytes_read = psa_read(msg->handle, 0, &faddr, fadd_size);
-    if (bytes_read != fadd_size)
-    {
-        return PSA_ERROR_GENERIC_ERROR;
-    }
-    bytes_read = psa_read(msg->handle, 1, challenge_buff, challenge_size);
-    if (bytes_read != challenge_size)
-    {
-        return PSA_ERROR_GENERIC_ERROR;
-    }
-
-    status = proof_of_execution(faddr, challenge_buff, challenge_size, token_buff, token_buff_size, &token_size);
+    status = proof_of_execution(view.function_addr_le32, view.challenge, view.challenge_len, token_buff, token_buff_size, &token_size);
     if (status == PSA_SUCCESS)
     {
         psa_write(msg->handle, 0, token_buff, token_size);
     }
-
+    
     return status;
 }
 

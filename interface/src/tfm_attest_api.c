@@ -87,8 +87,9 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     };
 
     psa_invec in_vec[] = {
-        {&faddr, sizeof(faddr)},
-        {auth_challenge, challenge_size}
+        // {&faddr, sizeof(faddr)},
+        // {auth_challenge, challenge_size},
+        {inbuf, inlen}
     };
     psa_outvec out_vec[] = {
         {token_buf, token_buf_size}

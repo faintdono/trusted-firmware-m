@@ -813,14 +813,16 @@ pox_create_token(uintptr_t faddr,
     LOG_INFFMT("[Secure] INFO: Non-secure function: x0%x\n", faddr);
 
     execute_value = ns_execute(faddr);
-
+    LOG_INFFMT("[Secure] INFO: Non-secure function return value: x0%x\n", execute_value);
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   faddr);
+    LOG_INFFMT("[Secure] INFO: Add Function address: x0%x\n", faddr);
     attest_err = attest_add_execution_value(&attest_token_ctx,
                                           execute_value);
+    LOG_INFFMT("[Secure] INFO: Add execution value: x0%x\n", execute_value);
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
-
+    LOG_INFFMT("[Secure] INFO: Add challenge value\n");
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;
@@ -835,13 +837,13 @@ pox_create_token(uintptr_t faddr,
             goto error;
         }
     }
-
+    LOG_INFFMT("[Secure] INFO: Add all claims into token\n");
     /* Finish up creating the token. This is where the actual signature
      * is generated. This finishes up the CBOR encoding too.
      */
     token_err = attest_token_encode_finish(&attest_token_ctx, completed_token);
     attest_err = error_mapping_to_psa_attest_err_t(token_err);
-
+    LOG_INFFMT("[Secure] INFO: Finish creating token\n");
 error:
     return attest_err;
 }

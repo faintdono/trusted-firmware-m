@@ -148,32 +148,84 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
 
     /* store the client ID here for later use in service */
     g_attest_caller_id = msg->client_id;
+    
+    /* Read the serialized data from the client */
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size)
     {
+        printf("ERROR: Failed to read complete message. Expected %zu, got %u bytes\n", 
+               inbuf_size, bytes_read);
         return PSA_ERROR_GENERIC_ERROR;
     }
 
+    /* Deserialize the POX call request */
     sec_pox_view_t view;
+    memset(&view, 0, sizeof(view)); // Initialize to zero
+    
     ser_status_t st = deserialize_ns_pox_call(inbuf, inbuf_size, &view);
-    printf("ser status: %d \n",st);
-    printf("SECURE in_buff_size: %d\n",inbuf_size);
-    if (st == SER_OK) {
-    printf("POX call received:\n");
-                        printf(" - Challenge len = %u\n", view.challenge_len);
-                        printf(" - Func addr ID = 0x%x\n", view.function_addr_le32);
-                        printf(" - Input len    = %u\n", view.input_len);
+    
+    /* Check deserialization status and handle errors */
+    if (st != SER_OK) {
+        printf("ERROR: Deserialization failed with status %d\n", st);
+        switch (st) {
+            case SER_EINVAL:
+                printf("  - Invalid arguments\n");
+                return PSA_ERROR_INVALID_ARGUMENT;
+            case SER_E2BIG:
+                printf("  - Buffer too small\n");
+                return PSA_ERROR_INSUFFICIENT_MEMORY;
+            case SER_EMALFORMED:
+                printf("  - Malformed data\n");
+                return PSA_ERROR_INVALID_ARGUMENT;
+            case SER_ECRC:
+                printf("  - CRC mismatch\n");
+                return PSA_ERROR_CORRUPTION_DETECTED;
+            default:
+                printf("  - Unknown error\n");
+                return PSA_ERROR_GENERIC_ERROR;
+        }
     }
 
-    if ((view.challenge_len > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64) || (view.challenge_len == 0) || (token_buff_size == 0))
-    {
+    /* Deserialization successful - print the parsed data */
+    printf("POX call received:\n");
+    printf(" - Challenge len = %u\n", view.challenge_len);
+    printf(" - Func addr ID = 0x%x\n", (unsigned int)view.function_addr_le32);
+    printf(" - Input   = 0x%x\n", (unsigned int)view.input);
+    printf(" - Input len   = %u\n", view.input_len);
+
+    /* Validate the parsed data before proceeding */
+    if (view.challenge_len > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64 || 
+        view.challenge_len == 0 || 
+        token_buff_size == 0) {
+        printf("ERROR: Invalid parameters after deserialization\n");
+        printf("  - Challenge len: %u (max: %u)\n", view.challenge_len, PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64);
+        printf("  - Token buffer size: %zu\n", token_buff_size);
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    status = proof_of_execution(view.function_addr_le32, view.challenge, view.challenge_len, token_buff, token_buff_size, &token_size);
-    if (status == PSA_SUCCESS)
-    {
+    /* Additional validation */
+    if (!view.challenge) {
+        printf("ERROR: Challenge pointer is NULL\n");
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    /* All validation passed - proceed with proof of execution */
+    printf("Deserialization complete and validated. Calling proof_of_execution...\n");
+    
+    status = proof_of_execution(view.function_addr_le32, 
+                               view.input, 
+                               view.input_len, 
+                               view.challenge, 
+                               view.challenge_len, 
+                               token_buff, 
+                               token_buff_size, 
+                               &token_size);
+
+    if (status == PSA_SUCCESS) {
+        printf("Proof of execution successful. Writing %zu bytes to output\n", token_size);
         psa_write(msg->handle, 0, token_buff, token_size);
+    } else {
+        printf("ERROR: Proof of execution failed with status 0x%x\n", (unsigned int)status);
     }
     
     return status;

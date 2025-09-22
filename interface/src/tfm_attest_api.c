@@ -70,17 +70,27 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
     size_t  inlen = 0;
     
-    /* Mock up missing variables */
-    const uint8_t *input_bytes = NULL;
-    uint32_t input_len = 0;
+    /* Define input_bytes as a pointer to an integer value 10 */
+    int input_val = 10;
+    const uint8_t *input_bytes = (const uint8_t *)&input_val;
+    uint32_t input_len = sizeof(input_val);
+
+    // /* Mock up missing variables */
+    // const uint8_t *input_bytes = NULL;
+    // uint32_t input_len = 0;
 
     ns_pox_call_req_t r = {
         .challenge = auth_challenge,
         .challenge_len = challenge_size,   /* 32..64 */
         .function_addr = (uintptr_t)faddr,    /* Cast pointer to uintptr_t */
-        .input = input_bytes,
+        .input = (uintptr_t)input_bytes,         /* may be NULL if input_len == 0 */
         .input_len = input_len,
     };
+    printf("Preparing POX call:\n");
+                        printf(" - Challenge len = %u\n", r.challenge_len);
+                        printf(" - Func addr ID = 0x%x\n", r.function_addr);
+                        printf(" - Input    = 0x%x\n", r.input);
+                        printf(" - Input len   = %d\n", r.input_len);
 
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
         /* handle error */

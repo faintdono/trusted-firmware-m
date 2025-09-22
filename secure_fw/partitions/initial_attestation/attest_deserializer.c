@@ -29,11 +29,13 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
     const uint8_t  flags    = buf[1];
     const uint16_t hdr_len  = le16_load(&buf[2]);
     const uint16_t tlv_cnt  = le16_load(&buf[4]);
+    const uint16_t reserved = le16_load(&buf[6]);  // Read reserved field for completeness
     const uint32_t in_len_d = le32_load(&buf[8]);
 
     if(ver != POX_WIRE_VERSION) return SER_EMALFORMED;
     if(hdr_len != POX_WIRE_HEADER_LEN) return SER_EMALFORMED;
     if(hdr_len > len) return SER_EMALFORMED;
+    (void)reserved; // Suppress unused variable warning
 
     size_t tlvs_end = len;
     if(flags & POX_WIRE_F_HAS_CRC32){
@@ -44,8 +46,9 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
         tlvs_end = len - 4;
     }
 
-    out->version = ver; out->flags = flags; out->tlv_count = tlv_cnt;
-    out->input_len = in_len_d;
+    out->version = ver; 
+    out->flags = flags; 
+    out->tlv_count = tlv_cnt;
 
     size_t off = hdr_len;
     bool saw_ch=false, saw_fn=false, saw_in=false;
@@ -67,19 +70,26 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
         case POX_TLV_CHALLENGE:
             if(saw_ch) return SER_EMALFORMED;
             if(l < POX_CHALLENGE_LEN_MIN || l > POX_CHALLENGE_LEN_MAX) return SER_EMALFORMED;
-            out->challenge = val; out->challenge_len = l; saw_ch = true;
+            out->challenge = val; 
+            out->challenge_len = l; 
+            saw_ch = true;
             break;
 
         case POX_TLV_FUNC_ADDR:
             if(saw_fn) return SER_EMALFORMED;
             if(l != 4) return SER_EMALFORMED;
-            out->function_addr_le32 = le32_load(val); saw_fn = true;
+            out->function_addr_le32 = (uintptr_t)le32_load(val); 
+            saw_fn = true;
             break;
 
-        case POX_TLV_INPUT:
+        case POX_TLV_INPUT_ADDR:
             if(saw_in) return SER_EMALFORMED;
-            if(l != in_len_d) return SER_EMALFORMED;
-            out->input = val; out->input_len = l; saw_in = true;
+            // Now INPUT TLV contains just the address (4 bytes), not the data
+            if(l != 4) return SER_EMALFORMED;
+            // Store the original input address
+            out->input = (uintptr_t)le32_load(val);
+            out->input_len = in_len_d; // Use the input_len from header
+            saw_in = true;
             break;
 
         default:

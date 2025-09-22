@@ -34,7 +34,7 @@ static ser_status_t put_tlv(uint8_t *out, size_t cap, size_t *off,
     le16_store(&out[*off], 0);    *off += 2;         /* reserved2 */
     le32_store(&out[*off], len);  *off += 4;
 
-    if (len) { memcpy(&out[*off], val, len); *off += len; }
+    if (len && val) { memcpy(&out[*off], val, len); *off += len; }
     (*tlv_count)++;
     return SER_OK;
 }
@@ -62,20 +62,28 @@ ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
     uint16_t tlv_count = 0;
 
     /* TLV: CHALLENGE */
-    { ser_status_t st = put_tlv(out, cap, &off, POX_TLV_CHALLENGE,
+    {
+      ser_status_t st = put_tlv(out, cap, &off, POX_TLV_CHALLENGE,
                                 req->challenge, req->challenge_len, &tlv_count);
-      if(st != SER_OK) return st; }
+      if(st != SER_OK) return st;
+    }
 
     /* TLV: FUNC_ADDR (4 bytes LE) */
-    { uint8_t tmp[4]; le32_store(tmp, (uint32_t)req->function_addr);
-      ser_status_t st = put_tlv(out, cap, &off, POX_TLV_FUNC_ADDR,
-                                tmp, 4, &tlv_count);
-      if(st != SER_OK) return st; }
+    {
+      uint8_t tmp[4];
+      le32_store(tmp, (uint32_t)req->function_addr);
+      ser_status_t st = put_tlv(out, cap, &off, POX_TLV_FUNC_ADDR, tmp, 4, &tlv_count);
+      if(st != SER_OK) return st;
+    }
 
-    /* TLV: INPUT */
-    { ser_status_t st = put_tlv(out, cap, &off, POX_TLV_INPUT,
-                                req->input, req->input_len, &tlv_count);
-      if(st != SER_OK) return st; }
+    /* TLV: INPUT_ADDR - Store original input address (4 bytes LE).
+       NOTE: We do NOT include the input data bytes in TLVs — input_len is in header. */
+    {
+      uint8_t tmp[4];
+      le32_store(tmp, (uint32_t)req->input);
+      ser_status_t st = put_tlv(out, cap, &off, POX_TLV_INPUT_ADDR, tmp, 4, &tlv_count);
+      if(st != SER_OK) return st;
+    }
 
     /* patch tlv_count */
     le16_store(&out[tlv_count_pos], tlv_count);
@@ -103,19 +111,19 @@ ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
 
     size_t n = 0, tmp;
 
-    // header
+    /* header */
     n = POX_WIRE_HEADER_LEN;
 
-    // TLV: CHALLENGE (8 + challenge_len)
+    /* TLV: CHALLENGE (8 + challenge_len) */
     if (add_ov(n, 8u + (size_t)req->challenge_len, &tmp)) return SER_E2BIG; n = tmp;
 
-    // TLV: FUNC_ADDR (8 + 4)
+    /* TLV: FUNC_ADDR (8 + 4) */
     if (add_ov(n, 8u + 4u, &tmp)) return SER_E2BIG; n = tmp;
 
-    // TLV: INPUT (8 + input_len)
-    if (add_ov(n, 8u + (size_t)req->input_len, &tmp)) return SER_E2BIG; n = tmp;
+    /* TLV: INPUT_ADDR (8 + 4) */
+    if (add_ov(n, 8u + 4u, &tmp)) return SER_E2BIG; n = tmp;
 
-    // Optional CRC
+    /* Optional CRC */
     if (req->add_crc32) { if (add_ov(n, 4u, &tmp)) return SER_E2BIG; n = tmp; }
 
     *needed = n;

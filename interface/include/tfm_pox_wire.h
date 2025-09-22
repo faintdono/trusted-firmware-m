@@ -52,7 +52,7 @@ extern "C" {
 typedef enum {
     POX_TLV_CHALLENGE = 0x0001,
     POX_TLV_FUNC_ADDR = 0x0002,
-    POX_TLV_INPUT     = 0x0003,
+    POX_TLV_INPUT_ADDR     = 0x0003,
 } pox_tlv_type_t;
 
 #define POX_CHALLENGE_LEN_MIN       (32u)
@@ -76,7 +76,7 @@ typedef struct {
 
     uint32_t      function_addr; /* 32-bit on wire (selector/ID) */
 
-    const uint8_t *input;         /* may be NULL if input_len == 0 */
+    uint32_t       input;         /* may be NULL if input_len == 0 */
     uint32_t       input_len;     /* arbitrary size (u32) */
 
     bool           add_crc32;     /* append CRC-32 if true */
@@ -95,7 +95,7 @@ typedef struct {
     const uint8_t *challenge;     
     uint32_t challenge_len;
     uintptr_t       function_addr_le32;   /* selector/ID */
-    const uint8_t *input;         
+    uintptr_t input;         
     uint32_t input_len;
 
     /* Header meta */

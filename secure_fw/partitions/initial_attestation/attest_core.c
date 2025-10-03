@@ -827,7 +827,7 @@ pox_create_token(uintptr_t faddr,
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);
     attest_err = attest_add_execution_value(&attest_token_ctx,
-                                          &execute_value);
+                                          &execute_value); // -> expect to be byte.
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
     LOG_INFFMT("[Secure] INFO: Add challenge value\n");

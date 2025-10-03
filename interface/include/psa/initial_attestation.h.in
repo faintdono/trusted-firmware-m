@@ -214,6 +214,8 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
  */
 psa_status_t
 psa_proof_of_execution_get_token(uintptr_t faddr,
+                                 const uint8_t *input_bytes,
+                                 size_t input_len,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
                                  uint8_t       *token_buf,

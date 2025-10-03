@@ -19,6 +19,9 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len)
     return ret;
 }
 
+// void ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len, uint8_t *output, uint32_t *output_len) -> or return int
+
+
 int ns_execute_void(uintptr_t faddr)
 {
     if (!faddr)

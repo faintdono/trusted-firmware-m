@@ -19,6 +19,7 @@
 #include "psa_manifest/tfm_initial_attestation.h"
 #include "tfm_attest_defs.h"
 #include "tfm_pox_wire.h"
+#include "tfm_sp_log.h"
 
 #define ECC_P256_PUBLIC_KEY_SIZE PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256)
 
@@ -153,7 +154,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size)
     {
-        printf("ERROR: Failed to read complete message. Expected %zu, got %u bytes\n", 
+        LOG_INFFMT("ERROR: Failed to read complete message. Expected %zu, got %u bytes\n", 
                inbuf_size, bytes_read);
         return PSA_ERROR_GENERIC_ERROR;
     }
@@ -166,51 +167,51 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     
     /* Check deserialization status and handle errors */
     if (st != SER_OK) {
-        printf("ERROR: Deserialization failed with status %d\n", st);
+        LOG_INFFMT("[SER] ERROR: Deserialization failed with status %d\n", st);
         switch (st) {
             case SER_EINVAL:
-                printf("  - Invalid arguments\n");
+                LOG_INFFMT("[SER] - Invalid arguments\n");
                 return PSA_ERROR_INVALID_ARGUMENT;
             case SER_E2BIG:
-                printf("  - Buffer too small\n");
+                LOG_INFFMT("[SER] - Buffer too small\n");
                 return PSA_ERROR_INSUFFICIENT_MEMORY;
             case SER_EMALFORMED:
-                printf("  - Malformed data\n");
+                LOG_INFFMT("[SER] - Malformed data\n");
                 return PSA_ERROR_INVALID_ARGUMENT;
             case SER_ECRC:
-                printf("  - CRC mismatch\n");
+                LOG_INFFMT("[SER] - CRC mismatch\n");
                 return PSA_ERROR_CORRUPTION_DETECTED;
             default:
-                printf("  - Unknown error\n");
+                LOG_INFFMT("[SER] - Unknown error\n");
                 return PSA_ERROR_GENERIC_ERROR;
         }
     }
 
     /* Deserialization successful - print the parsed data */
-    printf("POX call received:\n");
-    printf(" - Challenge len = %u\n", view.challenge_len);
-    printf(" - Func addr ID = 0x%x\n", (unsigned int)view.function_addr_le32);
-    printf(" - Input   = 0x%x\n", (unsigned int)view.input);
-    printf(" - Input len   = %u\n", view.input_len);
+    LOG_INFFMT("POX call received:\n");
+    LOG_INFFMT(" - Challenge len = %u\n", view.challenge_len);
+    LOG_INFFMT(" - Func addr ID = 0x%x\n", (unsigned int)view.function_addr_le32);
+    LOG_INFFMT(" - Input   = 0x%x\n", (unsigned int)view.input);
+    LOG_INFFMT(" - Input len   = %u\n", view.input_len);
 
     /* Validate the parsed data before proceeding */
     if (view.challenge_len > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64 || 
         view.challenge_len == 0 || 
         token_buff_size == 0) {
-        printf("ERROR: Invalid parameters after deserialization\n");
-        printf("  - Challenge len: %u (max: %u)\n", view.challenge_len, PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64);
-        printf("  - Token buffer size: %zu\n", token_buff_size);
+        LOG_INFFMT("ERROR: Invalid parameters after deserialization\n");
+        LOG_INFFMT("  - Challenge len: %u (max: %u)\n", view.challenge_len, PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64);
+        LOG_INFFMT("  - Token buffer size: %zu\n", token_buff_size);
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
     /* Additional validation */
     if (!view.challenge) {
-        printf("ERROR: Challenge pointer is NULL\n");
+        LOG_INFFMT("ERROR: Challenge pointer is NULL\n");
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
     /* All validation passed - proceed with proof of execution */
-    printf("Deserialization complete and validated. Calling proof_of_execution...\n");
+    LOG_INFFMT("Deserialization complete and validated. Calling proof_of_execution...\n");
     
     status = proof_of_execution(view.function_addr_le32, 
                                view.input, 
@@ -222,10 +223,10 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
                                &token_size);
 
     if (status == PSA_SUCCESS) {
-        printf("Proof of execution successful. Writing %zu bytes to output\n", token_size);
+        LOG_INFFMT("Proof of execution successful. Writing %zu bytes to output\n", token_size);
         psa_write(msg->handle, 0, token_buff, token_size);
     } else {
-        printf("ERROR: Proof of execution failed with status 0x%x\n", (unsigned int)status);
+        LOG_INFFMT("ERROR: Proof of execution failed with status 0x%x\n", (unsigned int)status);
     }
     
     return status;

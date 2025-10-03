@@ -60,6 +60,8 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
 
 psa_status_t
 psa_proof_of_execution_get_token(uintptr_t faddr,
+                                 const uint8_t *input_bytes,
+                                 size_t input_len,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
                                  uint8_t       *token_buf,
@@ -71,13 +73,9 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     size_t  inlen = 0;
     
     /* Define input_bytes as a pointer to an integer value 10 */
-    int input_val = 10;
-    const uint8_t *input_bytes = (const uint8_t *)&input_val;
-    uint32_t input_len = sizeof(input_val);
-
-    // /* Mock up missing variables */
-    // const uint8_t *input_bytes = NULL;
-    // uint32_t input_len = 0;
+    // int input_val = 10;
+    // const uint8_t *input_bytes = (const uint8_t *)&input_val;
+    // uint32_t input_len = sizeof(input_val);
 
     ns_pox_call_req_t r = {
         .challenge = auth_challenge,

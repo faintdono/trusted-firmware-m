@@ -122,8 +122,8 @@ initial_attest_get_token_size(size_t challenge_size, size_t *token_size);
  * \return Returns error code as specified in \ref psa_status_t
  */
 psa_status_t
-// proof_of_execution(uintptr_t faddr,
 proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
+                   uint8_t *output, uint32_t output_len,
                    const void *challenge_buf, size_t challenge_size,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size);

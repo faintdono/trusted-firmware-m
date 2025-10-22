@@ -71,11 +71,8 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     psa_status_t status;
     uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
     size_t  inlen = 0;
-    
-    /* Define input_bytes as a pointer to an integer value 10 */
-    // int input_val = 10;
-    // const uint8_t *input_bytes = (const uint8_t *)&input_val;
-    // uint32_t input_len = sizeof(input_val);
+    uint8_t ns_output[64] = {0};
+    size_t ns_output_sz = sizeof(ns_output);
 
     ns_pox_call_req_t r = {
         .challenge = auth_challenge,
@@ -90,14 +87,14 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
                         printf(" - Input    = 0x%x\n", r.input);
                         printf(" - Input len   = %d\n", r.input_len);
 
+    printf("NS output buffer at %p, size %u\n", ns_output, (unsigned int)ns_output_sz);
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
         /* handle error */
     };
 
     psa_invec in_vec[] = {
-        // {&faddr, sizeof(faddr)},
-        // {auth_challenge, challenge_size},
-        {inbuf, inlen}
+        {inbuf, inlen},
+        {ns_output, ns_output_sz}
     };
     psa_outvec out_vec[] = {
         {token_buf, token_buf_size}

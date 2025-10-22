@@ -505,15 +505,14 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
  */
 static enum psa_attest_err_t
 attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
-                 const int *execution_value)
+                           const int *execution_value)
 {
     attest_token_encode_add_integer(token_ctx,
                                     IAT_POX_OUT,
-                                    (int64_t) execution_value);
+                                    (int64_t)execution_value);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
-
 
 /*!
  * \brief Static function to verify the input challenge size
@@ -778,10 +777,11 @@ error:
 }
 
 static enum psa_attest_err_t
-// pox_create_token(uintptr_t faddr,
 pox_create_token(uintptr_t faddr,
                  const uint8_t *input,
                  const uint32_t input_len,
+                 uint8_t *output,
+                 uint32_t output_len,
                  struct q_useful_buf_c *challenge,
                  struct q_useful_buf *token,
                  struct q_useful_buf_c *completed_token)
@@ -814,9 +814,9 @@ pox_create_token(uintptr_t faddr,
         goto error;
     }
     LOG_INFFMT("[Secure] INFO: Non-secure function: x0%x\n", faddr);
-    // LOG_INFFMT("[Secure] INFO: Non-secure function input data: %d\n", *input);
-    // LOG_INFFMT("[Secure] INFO: Non-secure function input data length: %d\n", input_len);
-    if (input_len != 0) {
+
+    if (input_len != 0)
+    {
         execute_value = ns_execute(faddr, input, input_len);
     }
     // } else {
@@ -827,7 +827,7 @@ pox_create_token(uintptr_t faddr,
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);
     attest_err = attest_add_execution_value(&attest_token_ctx,
-                                          &execute_value); // -> expect to be byte.
+                                            &execute_value); // -> expect to be byte.
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
     LOG_INFFMT("[Secure] INFO: Add challenge value\n");
@@ -857,11 +857,11 @@ error:
 }
 
 psa_status_t
-// proof_of_execution(uintptr_t faddr,
 proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
-                         const void *challenge_buf, size_t challenge_size,
-                         void *token_buf, size_t token_buf_size,
-                         size_t *token_size)
+                   uint8_t *output, uint32_t output_len,
+                   const void *challenge_buf, size_t challenge_size,
+                   void *token_buf, size_t token_buf_size,
+                   size_t *token_size)
 {
     enum psa_attest_err_t attest_err = PSA_ATTEST_ERR_SUCCESS;
     struct q_useful_buf_c challenge;
@@ -884,8 +884,7 @@ proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_l
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
-// attest_err = pox_create_token(faddr, &challenge, &token, &completed_token);
-attest_err = pox_create_token(faddr, input, input_len, &challenge, &token, &completed_token);
+    attest_err = pox_create_token(faddr, input, input_len, output, output_len, &challenge, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;

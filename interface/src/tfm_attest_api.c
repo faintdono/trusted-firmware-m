@@ -62,6 +62,8 @@ psa_status_t
 psa_proof_of_execution_get_token(uintptr_t faddr,
                                  const uint8_t *input_bytes,
                                  size_t input_len,
+                                 const uint8_t *ns_output,
+                                 size_t ns_output_sz,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
                                  uint8_t       *token_buf,
@@ -71,8 +73,8 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     psa_status_t status;
     uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
     size_t  inlen = 0;
-    uint8_t ns_output[64] = {0};
-    size_t ns_output_sz = sizeof(ns_output);
+    // uint8_t ns_output[64] = {0};
+    // size_t ns_output_sz = sizeof(ns_output);
 
     ns_pox_call_req_t r = {
         .challenge = auth_challenge,
@@ -80,21 +82,24 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
         .function_addr = (uintptr_t)faddr,    /* Cast pointer to uintptr_t */
         .input = (uintptr_t)input_bytes,         /* may be NULL if input_len == 0 */
         .input_len = input_len,
+        .output = (uintptr_t)ns_output,        /* may be NULL if output_len == 0 */
+        .output_len = ns_output_sz
     };
     printf("Preparing POX call:\n");
                         printf(" - Challenge len = %u\n", r.challenge_len);
                         printf(" - Func addr ID = 0x%x\n", r.function_addr);
                         printf(" - Input    = 0x%x\n", r.input);
                         printf(" - Input len   = %d\n", r.input_len);
+                        printf(" - Output   = 0x%x\n", r.output);
+                        printf(" - Output len  = %d\n", r.output_len);
 
-    printf("NS output buffer at %p, size %u\n", ns_output, (unsigned int)ns_output_sz);
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
         /* handle error */
+        printf("Error: serialize_ns_pox_call() failed\n");
     };
 
     psa_invec in_vec[] = {
-        {inbuf, inlen},
-        {ns_output, ns_output_sz}
+        {inbuf, inlen}
     };
     psa_outvec out_vec[] = {
         {token_buf, token_buf_size}

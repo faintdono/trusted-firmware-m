@@ -195,14 +195,21 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
                                   size_t *token_size);
 
 /**
- * \brief Get proof of excution token
+ * \brief Get proof of execution token
  *
- * \param[in]     faddr           Pointer to Function Address
+ * \param[in]     faddr           Function address (uintptr_t) for which the
+ *                                proof of execution is being generated.
+ * \param[in]     input_bytes     Pointer to input bytes provided to the
+ *                                function being attested (may be NULL).
+ * \param[in]     input_len       Length of input_bytes in bytes.
+ * \param[in]     ns_output       Pointer to non-secure output produced by the
+ *                                function being attested (may be NULL).
+ * \param[in]     ns_output_sz    Size of ns_output in bytes.
  * \param[in]     auth_challenge  Pointer to buffer where challenge input is
- *                                stored. Nonce and / or hash of attested data.
- *                                Must be always
- *                                \ref PSA_INITIAL_ATTEST_TOKEN_SIZE bytes
- *                                long.
+ *                                stored. Must be one of the supported sizes:
+ *                                PSA_INITIAL_ATTEST_CHALLENGE_SIZE_32,
+ *                                PSA_INITIAL_ATTEST_CHALLENGE_SIZE_48 or
+ *                                PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64.
  * \param[in]     challenge_size  Size of challenge object in bytes.
  * \param[out]    token_buf       Pointer to the buffer where attestation token
  *                                will be stored.
@@ -216,6 +223,8 @@ psa_status_t
 psa_proof_of_execution_get_token(uintptr_t faddr,
                                  const uint8_t *input_bytes,
                                  size_t input_len,
+                                 const uint8_t *ns_output,
+                                 size_t ns_output_sz,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
                                  uint8_t       *token_buf,

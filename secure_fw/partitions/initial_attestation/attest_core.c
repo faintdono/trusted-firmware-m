@@ -505,11 +505,27 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
  */
 static enum psa_attest_err_t
 attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
-                           const int *execution_value)
+                           const uint8_t *execution_value)
 {
-    attest_token_encode_add_integer(token_ctx,
-                                    IAT_POX_OUT,
-                                    (int64_t)execution_value);
+    uint8_t buf[1];
+    struct q_useful_buf_c claim_value;
+
+    if (execution_value == NULL) {
+        return PSA_ATTEST_ERR_INVALID_INPUT;
+    }
+
+    /* copy the execution byte so the CBOR encoder sees the value now */
+    /* print execution value (hex and decimal) */
+    LOG_INFFMT("[Secure] INFO: Execution value: 0x%x (%u)\n",
+               (unsigned int)*execution_value, (unsigned int)*execution_value);
+    buf[0] = *execution_value;
+    
+    claim_value.ptr = buf;
+    claim_value.len = sizeof(buf);
+
+    attest_token_encode_add_bstr(token_ctx,
+                                 IAT_POX_OUT,
+                                 &claim_value);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
@@ -781,7 +797,7 @@ pox_create_token(uintptr_t faddr,
                  const uint8_t *input,
                  const uint32_t input_len,
                  uint8_t *output,
-                 uint32_t output_len,
+                 uint32_t *output_len,
                  struct q_useful_buf_c *challenge,
                  struct q_useful_buf *token,
                  struct q_useful_buf_c *completed_token)
@@ -817,17 +833,17 @@ pox_create_token(uintptr_t faddr,
 
     if (input_len != 0)
     {
-        execute_value = ns_execute(faddr, input, input_len);
+        execute_value = ns_execute(faddr, input, input_len, output, output_len);
     }
     // } else {
     //     execute_value = ns_execute(faddr, input, input_len);
     // }
     // execute_value = ns_execute_void(faddr);
-    LOG_INFFMT("[Secure] INFO: Non-secure function return value: %d\n", execute_value);
+    LOG_INFFMT("[Secure] INFO: Non-secure function return value: %d\n", *output);
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);
     attest_err = attest_add_execution_value(&attest_token_ctx,
-                                            &execute_value); // -> expect to be byte.
+                                            output);
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
     LOG_INFFMT("[Secure] INFO: Add challenge value\n");
@@ -858,7 +874,7 @@ error:
 
 psa_status_t
 proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
-                   uint8_t *output, uint32_t output_len,
+                   uint8_t *output, uint32_t *output_len,
                    const void *challenge_buf, size_t challenge_size,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size)

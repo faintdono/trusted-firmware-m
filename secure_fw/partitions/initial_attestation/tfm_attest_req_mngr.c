@@ -140,12 +140,9 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     size_t token_buff_size;
     size_t token_size;
     size_t inbuf_size;
-    size_t ns_output_sz;
-    uint8_t ns_output[64];
     uint8_t inbuf[256];
 
     inbuf_size = msg->in_size[0];
-    ns_output_sz = msg->in_size[1];
     token_buff_size = (msg->out_size[0] < sizeof(token_buff))
                            ? msg->out_size[0]
                            : sizeof(token_buff);
@@ -157,7 +154,6 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     if (bytes_read != inbuf_size) {
         return PSA_ERROR_GENERIC_ERROR;
     }
-    bytes_read = psa_read(msg->handle, 1, ns_output, ns_output_sz);
     
     sec_pox_view_t view = {0};
     ser_status_t st = deserialize_ns_pox_call(inbuf, inbuf_size, &view);
@@ -167,6 +163,19 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
                                    PSA_ERROR_INVALID_ARGUMENT;
     }
 
+    /* Log deserialization result and perform a basic sanity check */
+    LOG_INFFMT("deserialize_ns_pox_call succeeded: func=0x%x, in_len=%u, out_len=%u, challenge_len=%u\n",
+               (unsigned int)view.function_addr_le32,
+               (unsigned int)view.input_len,
+               (unsigned int)view.output_len,
+               (unsigned int)view.challenge_len);
+
+    if ((view.input_len > 0 && view.input == NULL) ||
+        (view.output_len > 0 && view.output == NULL) ||
+        (view.challenge_len > 0 && view.challenge == NULL)) {
+        LOG_INFFMT("ERROR: Deserialized view has inconsistent pointers/lengths\n");
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
     if (!view.challenge ||
         view.challenge_len == 0 ||
         view.challenge_len > PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64 ||
@@ -177,8 +186,8 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     status = proof_of_execution(view.function_addr_le32, 
                                view.input, 
                                view.input_len, 
-                               ns_output,
-                               ns_output_sz,
+                               view.output,
+                               view.output_len,
                                view.challenge, 
                                view.challenge_len, 
                                token_buff, 

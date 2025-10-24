@@ -2,7 +2,8 @@
 #include "tfm_sp_log.h"
 #include <stdint.h>
 
-int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len)
+int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
+               uint8_t *output, uint32_t *output_len)
 {
     if (!faddr)
     {
@@ -14,7 +15,8 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len)
     ns_function_ptr_with_args_t ns_function = (ns_function_ptr_with_args_t)(faddr | 1U); // Set bit 0 for Thumb mode
 
     // Call the non-secure function
-    int ret = ns_function(input, input_len);
+    LOG_INFFMT("[Secure] INFO: Calling non-secure output at address: 0x%x\n", output);
+    int ret = ns_function(input, input_len, output, output_len);
 
     return ret;
 }

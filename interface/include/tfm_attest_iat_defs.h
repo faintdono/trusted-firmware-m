@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024, Arm Limited. All rights reserved.
+ * Copyright (c) 2019-2022, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -29,6 +29,9 @@ extern "C" {
 #define IAT_NONCE                          (IAT_ARM_RANGE_BASE - 8)
 #define IAT_INSTANCE_ID                    (IAT_ARM_RANGE_BASE - 9)
 #define IAT_VERIFICATION_SERVICE           (IAT_ARM_RANGE_BASE - 10)
+#define IAT_POX_IA                         (IAT_ARM_RANGE_BASE - 11)
+#define IAT_POX_FADDR                      (IAT_ARM_RANGE_BASE - 12)
+#define IAT_POX_OUT                        (IAT_ARM_RANGE_BASE - 13)
 
 /* Indicates that the boot status intentionally (i.e. the bootloader is not
  * capable of producing it) does not contain any SW components' measurement.
@@ -42,12 +45,11 @@ extern "C" {
 #define IAT_NONCE                          10  /* EAT nonce */
 #define IAT_INSTANCE_ID                    256 /* EAT ueid */
 #define IAT_PROFILE_DEFINITION             265 /* EAT eat_profile */
-#define IAT_BOOT_SEED                      268 /* EAT bootseed */
 #define IAT_ARM_RANGE_BASE                 (2393)
 #define IAT_CLIENT_ID                      (IAT_ARM_RANGE_BASE + 1)
 #define IAT_SECURITY_LIFECYCLE             (IAT_ARM_RANGE_BASE + 2)
 #define IAT_IMPLEMENTATION_ID              (IAT_ARM_RANGE_BASE + 3)
-/* Reserved                                (IAT_ARM_RANGE_BASE + 4) */
+#define IAT_BOOT_SEED                      (IAT_ARM_RANGE_BASE + 4)
 #define IAT_CERTIFICATION_REFERENCE        (IAT_ARM_RANGE_BASE + 5)
 #define IAT_SW_COMPONENTS                  (IAT_ARM_RANGE_BASE + 6)
 #define IAT_VERIFICATION_SERVICE           (IAT_ARM_RANGE_BASE + 7)
@@ -59,11 +61,11 @@ extern "C" {
 #define IAT_INSTANCE_ID                    256 /* EAT ueid */
 #define IAT_PROFILE_DEFINITION             265 /* EAT eat_profile */
 #define IAT_ARM_RANGE_BASE                 (2393)
-/* Reserved                                (IAT_ARM_RANGE_BASE + 1) */
+#define IAT_CLIENT_ID                      (IAT_ARM_RANGE_BASE + 1)
 #define IAT_SECURITY_LIFECYCLE             (IAT_ARM_RANGE_BASE + 2)
 #define IAT_IMPLEMENTATION_ID              (IAT_ARM_RANGE_BASE + 3)
-/* Reserved                                (IAT_ARM_RANGE_BASE + 4) */
-/* Reserved                                (IAT_ARM_RANGE_BASE + 5) */
+#define IAT_BOOT_SEED                      (IAT_ARM_RANGE_BASE + 4)
+#define IAT_CERTIFICATION_REFERENCE        (IAT_ARM_RANGE_BASE + 5)
 #define IAT_SW_COMPONENTS                  (IAT_ARM_RANGE_BASE + 6)
 #define IAT_VERIFICATION_SERVICE           (IAT_ARM_RANGE_BASE + 7)
 #define IAT_PLATFORM_CONFIG                (IAT_ARM_RANGE_BASE + 8)

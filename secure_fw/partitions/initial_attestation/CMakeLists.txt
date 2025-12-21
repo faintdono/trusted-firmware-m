@@ -25,6 +25,8 @@ target_sources(tfm_psa_rot_partition_attestation PRIVATE
     $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:attest_asymmetric_key.c>
     $<$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>:attest_symmetric_key.c>
     attest_token_encode.c
+    attest_execute.c
+    attest_deserializer.c
 )
 
 # The generated sources

@@ -149,12 +149,12 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
 
     /* store the client ID here for later use in service */
     g_attest_caller_id = msg->client_id;
-    
+
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size) {
         return PSA_ERROR_GENERIC_ERROR;
     }
-    
+
     sec_pox_view_t view = {0};
     ser_status_t st = deserialize_ns_pox_call(inbuf, inbuf_size, &view);
     if (st != SER_OK) {
@@ -200,7 +200,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     } else {
         LOG_INFFMT("ERROR: Proof of execution failed with status 0x%x\n", (unsigned int)status);
     }
-    
+
     return status;
 }
 

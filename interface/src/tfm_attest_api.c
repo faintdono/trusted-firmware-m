@@ -20,7 +20,7 @@ psa_initial_attest_get_token(const uint8_t *auth_challenge,
                              size_t        *token_size)
 {
     psa_status_t status;
-    
+
     psa_invec in_vec[] = {
         {auth_challenge, challenge_size}
     };
@@ -73,8 +73,6 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     psa_status_t status;
     uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
     size_t  inlen = 0;
-    // uint8_t ns_output[64] = {0};
-    // size_t ns_output_sz = sizeof(ns_output);
 
     ns_pox_call_req_t r = {
         .challenge = auth_challenge,

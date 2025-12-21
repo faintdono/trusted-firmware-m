@@ -253,7 +253,7 @@ attest_add_profile_definition(struct attest_token_encode_ctx *token_ctx)
         return PSA_ATTEST_ERR_GENERAL;
     }
 
-    profile.ptr = &buf;
+    profile.ptr = buf;
     profile.len = size;
     attest_token_encode_add_tstr(token_ctx,
                                  IAT_PROFILE_DEFINITION,
@@ -519,7 +519,7 @@ attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
     LOG_INFFMT("[Secure] INFO: Execution value: 0x%x (%u)\n",
                (unsigned int)*execution_value, (unsigned int)*execution_value);
     buf[0] = *execution_value;
-    
+
     claim_value.ptr = buf;
     claim_value.len = sizeof(buf);
 
@@ -835,10 +835,6 @@ pox_create_token(uintptr_t faddr,
     {
         execute_value = ns_execute(faddr, input, input_len, output, output_len);
     }
-    // } else {
-    //     execute_value = ns_execute(faddr, input, input_len);
-    // }
-    // execute_value = ns_execute_void(faddr);
     LOG_INFFMT("[Secure] INFO: Non-secure function return value: %d\n", *output);
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);

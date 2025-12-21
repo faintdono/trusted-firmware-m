@@ -222,7 +222,7 @@ Done:
  */
 
  void generate_new_key(psa_key_handle_t *key_handle) {
-    SPMLOG_INFMSG("[OAK] genearting key");
+    SPMLOG_INFMSG("[OAK] generating key");
     psa_status_t status;
 
     psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
@@ -236,7 +236,7 @@ Done:
 
 
 
-    SPMLOG_INFMSG("[OAK] genearting key2");
+    SPMLOG_INFMSG("[OAK] generating key2");
     status = psa_generate_key(&attributes, key_handle);
 
     SPMLOG_INFMSGVAL("[INF] key handle: ", *key_handle);
@@ -289,10 +289,6 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
     psa_key_handle_t private_key = TFM_BUILTIN_KEY_ID_IAK;
     struct q_useful_buf_c attest_key_id = NULL_Q_USEFUL_BUF_C;
 
-    // psa_key_handle_t keyid;
-    // import_fixed_key(&keyid);
-    // private_key = keyid;
-    
     /* Remember some of the configuration values */
     me->key_select = key_select;
 
@@ -347,7 +343,7 @@ attest_token_encode_finish(struct attest_token_encode_ctx *me,
         /* Main errors are invoking the hash or signature */
         return_value = t_cose_err_to_attest_err(cose_return_value);
         if (return_value == ATTEST_TOKEN_ERR_GENERAL){
-            LOG_ERRFMT("[ERR] HI IAM ERROR");
+            LOG_ERRFMT("[ERR] Failed to finish and sign attestation token");
         }
         goto Done;
     }

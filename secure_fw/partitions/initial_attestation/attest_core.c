@@ -491,6 +491,59 @@ attest_add_nonce_claim(struct attest_token_encode_ctx   *token_ctx,
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
+/*!
+ * \brief Static function to add the faddr to proof of execution.
+ *
+ * \param[in]  token_ctx  Token encoding context
+ * \param[in]  faddr      Pointer to Function Address
+ *
+ * \return Returns error code as specified in \ref psa_attest_err_t
+ */
+static enum psa_attest_err_t
+attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
+                 const uintptr_t *faddr)
+{
+    attest_token_encode_add_integer(token_ctx,
+                                    IAT_POX_FADDR,
+                                    (int64_t)faddr);
+
+    return PSA_ATTEST_ERR_SUCCESS;
+}
+
+/*!
+ * \brief Static function to add the execution value to proof of execution.
+ *
+ * \param[in]  token_ctx        Token encoding context
+ * \param[in]  execution_value  Pointer to execution value
+ *
+ * \return Returns error code as specified in \ref psa_attest_err_t
+ */
+static enum psa_attest_err_t
+attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
+                           const uint8_t *execution_value)
+{
+    uint8_t buf[1];
+    struct q_useful_buf_c claim_value;
+
+    if (execution_value == NULL) {
+        return PSA_ATTEST_ERR_INVALID_INPUT;
+    }
+
+    /* copy the execution byte so the CBOR encoder sees the value now */
+    /* print execution value (hex and decimal) */
+    LOG_INFFMT("[Secure] INFO: Execution value: 0x%x (%u)\n",
+               (unsigned int)*execution_value, (unsigned int)*execution_value);
+    buf[0] = *execution_value;
+    
+    claim_value.ptr = buf;
+    claim_value.len = sizeof(buf);
+
+    attest_token_encode_add_bstr(token_ctx,
+                                 IAT_POX_OUT,
+                                 &claim_value);
+
+    return PSA_ATTEST_ERR_SUCCESS;
+}
 
 /*!
  * \brief Static function to verify the input challenge size
@@ -727,6 +780,126 @@ initial_attest_get_token_size(size_t challenge_size, size_t *token_size)
 
     attest_err = attest_create_token(&challenge, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
+        goto error;
+    }
+
+    *token_size = completed_token.len;
+
+error:
+    return error_mapping_to_psa_status_t(attest_err);
+}
+
+static enum psa_attest_err_t
+pox_create_token(uintptr_t faddr,
+                 const uint8_t *input,
+                 const uint32_t input_len,
+                 uint8_t *output,
+                 uint32_t *output_len,
+                 struct q_useful_buf_c *challenge,
+                 struct q_useful_buf *token,
+                 struct q_useful_buf_c *completed_token)
+{
+    enum psa_attest_err_t attest_err = PSA_ATTEST_ERR_SUCCESS;
+    enum attest_token_err_t token_err;
+    struct attest_token_encode_ctx attest_token_ctx;
+    int32_t key_select = 0;
+    int i;
+    int32_t cose_algorithm_id;
+    int execute_value;
+
+    attest_err = attest_get_t_cose_algorithm(&cose_algorithm_id);
+    if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+    {
+        return attest_err;
+    }
+
+    /* Get started creating the token. This sets up the CBOR and COSE contexts
+     * which causes the COSE headers to be constructed.
+     */
+    token_err = attest_token_encode_start(&attest_token_ctx,
+                                          key_select,        /* key_select   */
+                                          cose_algorithm_id, /* alg_select   */
+                                          token);
+
+    if (token_err != ATTEST_TOKEN_ERR_SUCCESS)
+    {
+        attest_err = error_mapping_to_psa_attest_err_t(token_err);
+        goto error;
+    }
+    LOG_INFFMT("[Secure] INFO: Non-secure function: x0%x\n", faddr);
+
+    if (input_len != 0)
+    {
+        execute_value = ns_execute(faddr, input, input_len, output, output_len);
+    }
+    // } else {
+    //     execute_value = ns_execute(faddr, input, input_len);
+    // }
+    // execute_value = ns_execute_void(faddr);
+    LOG_INFFMT("[Secure] INFO: Non-secure function return value: %d\n", *output);
+    attest_err = attest_add_faddr(&attest_token_ctx,
+                                  &faddr);
+    attest_err = attest_add_execution_value(&attest_token_ctx,
+                                            output);
+    attest_err = attest_add_nonce_claim(&attest_token_ctx,
+                                        challenge);
+    LOG_INFFMT("[Secure] INFO: Add challenge value\n");
+    if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+    {
+        goto error;
+    }
+
+    for (i = 0; i < ARRAY_LENGTH(claim_query_funcs); ++i)
+    {
+        /* Calling the attest_add_XXX_claim functions */
+        attest_err = claim_query_funcs[i](&attest_token_ctx);
+        if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+        {
+            goto error;
+        }
+    }
+    LOG_INFFMT("[Secure] INFO: Add all claims into token\n");
+    /* Finish up creating the token. This is where the actual signature
+     * is generated. This finishes up the CBOR encoding too.
+     */
+    token_err = attest_token_encode_finish(&attest_token_ctx, completed_token);
+    attest_err = error_mapping_to_psa_attest_err_t(token_err);
+    LOG_INFFMT("[Secure] INFO: Finish creating token\n");
+error:
+    return attest_err;
+}
+
+psa_status_t
+proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
+                   uint8_t *output, uint32_t *output_len,
+                   const void *challenge_buf, size_t challenge_size,
+                   void *token_buf, size_t token_buf_size,
+                   size_t *token_size)
+{
+    enum psa_attest_err_t attest_err = PSA_ATTEST_ERR_SUCCESS;
+    struct q_useful_buf_c challenge;
+    struct q_useful_buf token;
+    struct q_useful_buf_c completed_token;
+
+    challenge.ptr = challenge_buf;
+    challenge.len = challenge_size;
+    token.ptr = token_buf;
+    token.len = token_buf_size;
+
+    attest_err = attest_verify_challenge_size(challenge.len);
+    if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+    {
+        goto error;
+    }
+
+    if (token.len == 0)
+    {
+        attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
+        goto error;
+    }
+    attest_err = pox_create_token(faddr, input, input_len, output, output_len, &challenge, &token, &completed_token);
+    if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+    {
         goto error;
     }
 

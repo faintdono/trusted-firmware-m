@@ -117,6 +117,7 @@ if (TFM_PARTITION_INITIAL_ATTESTATION)
             DESTINATION ${INSTALL_INTERFACE_INC_DIR}/psa)
     install(FILES       ${INTERFACE_INC_DIR}/tfm_attest_defs.h
                         ${INTERFACE_INC_DIR}/tfm_attest_iat_defs.h
+                        ${INTERFACE_INC_DIR}/tfm_pox_wire.h
             DESTINATION ${INSTALL_INTERFACE_INC_DIR})
 endif()
 
@@ -178,6 +179,7 @@ endif()
 
 if (TFM_PARTITION_INITIAL_ATTESTATION)
     install(FILES       ${INTERFACE_SRC_DIR}/tfm_attest_api.c
+                        ${INTERFACE_SRC_DIR}/tfm_pox_wire.c
             DESTINATION ${INSTALL_INTERFACE_SRC_DIR})
 endif()
 

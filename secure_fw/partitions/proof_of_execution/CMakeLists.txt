@@ -12,10 +12,10 @@ add_dependencies(tfm_app_rot_partition_pox manifest_tool)
 
 target_sources(tfm_app_rot_partition_pox
     PRIVATE
-        pox.c
+        tfm_pox_reg_mngr.c
+        pox_core.c
         pox_execute.c
-        pox_handler.c
-        pox_report.c
+        pox_deserializer.c
 )
 
 # The generated sources
@@ -65,5 +65,5 @@ target_link_libraries(tfm_partitions
 
 target_compile_definitions(tfm_config
     INTERFACE
-        TFM_PARTITION_POX
+        TFM_PARTITION_PROOF_OF_EXECUTION
 )

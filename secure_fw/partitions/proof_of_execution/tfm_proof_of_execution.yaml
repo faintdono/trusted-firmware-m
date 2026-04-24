@@ -12,7 +12,7 @@
   "type": "APPLICATION-ROT",
   "priority": "NORMAL",
   "model": "IPC",
-  "entry_point": "pox_ipc_entry",
+  "entry_point": "pox_init",
   "stack_size": "0x1000",
   "services": [
     {

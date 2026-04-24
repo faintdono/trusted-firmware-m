@@ -36,8 +36,7 @@ psa_status_t att_get_iat(uint8_t *challenge, uint8_t *token_buf, size_t *sys_tok
         return status;
     }
     LOG_INFFMT("[Secure] Attestation token size: %d\n", *sys_token_sz);
-    struct sf_hex_tbl_fmt fmt = {.ascii = false, .addr_label = false, .addr = 0};
-    print_hex(&fmt, token_buf, *sys_token_sz); // Only print the actual token size, not the whole buffer
+
     return PSA_SUCCESS;
 }
 

@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+if (NOT TFM_PARTITION_PROOF_OF_EXECUTION)
+    return()
+endif()
 
 cmake_minimum_required(VERSION 3.21)
 
@@ -21,11 +24,11 @@ target_sources(tfm_app_rot_partition_pox
 # The generated sources
 target_sources(tfm_app_rot_partition_pox
 PRIVATE
-        ${CMAKE_BINARY_DIR}/generated/secure_fw/partitions/proof_of_execution/auto_generated/intermedia_tfm_pox.c
+        ${CMAKE_BINARY_DIR}/generated/secure_fw/partitions/proof_of_execution/auto_generated/intermedia_tfm_proof_of_execution.c
 )
 target_sources(tfm_partitions
     INTERFACE
-        ${CMAKE_BINARY_DIR}/generated/secure_fw/partitions/proof_of_execution/auto_generated/load_info_tfm_pox.c
+        ${CMAKE_BINARY_DIR}/generated/secure_fw/partitions/proof_of_execution/auto_generated/load_info_tfm_proof_of_execution.c
 )
 
 # Set include directory

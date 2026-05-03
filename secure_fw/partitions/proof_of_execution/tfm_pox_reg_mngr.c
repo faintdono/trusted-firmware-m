@@ -1,3 +1,6 @@
+#include "psa/error.h"
+#include "psa/client.h"
+
 #include "psa/service.h"
 #include "psa_manifest/tfm_proof_of_execution.h"
 #include "pox.h"
@@ -25,9 +28,6 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
     token_buff_size = (msg->out_size[0] < sizeof(token_buff))
                            ? msg->out_size[0]
                            : sizeof(token_buff);
-
-    /* store the client ID here for later use in service */
-    g_attest_caller_id = msg->client_id;
     
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size) {
@@ -126,8 +126,7 @@ psa_status_t pox_init(void)
 	while (1) {
 		signals = psa_wait(PSA_WAIT_ANY, PSA_BLOCK);
 		if (signals & TFM_POX_SERVICE_SIGNAL) {
-			pox_ipc_handler(TFM_POX_SERVICE_SIGNAL,
-					 tfm_pox_service_ipc);
+			pox_ipc_handler(TFM_POX_SERVICE_SIGNAL);
 		} else {
 			psa_panic();
 		}

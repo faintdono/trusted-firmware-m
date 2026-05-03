@@ -1,9 +1,12 @@
 #include "pox.h"
+#include "pox_iat_decoder.h"
+
 #include "psa/client.h"
-#include "tfm_attest_iat_defs.h"
-#include "qcbor/qcbor.h"
 #include "psa/initial_attestation.h"
 
+#include "tfm_attest_iat_defs.h"
+
+#include "qcbor/qcbor.h"
 
 
 static psa_status_t sign_pox_payload(const uint8_t *payload, size_t payload_len,
@@ -24,12 +27,12 @@ static psa_status_t sign_pox_payload(const uint8_t *payload, size_t payload_len,
     return PSA_SUCCESS;
 }
 
-psa_status_t att_get_iat(uint8_t *challenge, uint8_t *token_buf, size_t *sys_token_sz)
+psa_status_t att_get_iat(uint8_t *challenge, size_t challenge_size, uint8_t *token_buf, size_t *sys_token_sz)
 {
     size_t token_buf_size = ATT_MAX_TOKEN_SIZE;
     LOG_INFFMT("[Secure] Requesting attestation token...\n");
 
-    psa_status_t status = psa_initial_attest_get_token(challenge, PSA_INITIAL_ATTEST_CHALLENGE_SIZE_32, token_buf, token_buf_size, sys_token_sz);
+    psa_status_t status = psa_initial_attest_get_token(challenge, challenge_size, token_buf, token_buf_size, sys_token_sz);
     if (status != PSA_SUCCESS)
     {
         LOG_INFFMT("[Secure] ERROR: Failed to get attestation token (status: %d)\n", status);
@@ -43,15 +46,29 @@ psa_status_t att_get_iat(uint8_t *challenge, uint8_t *token_buf, size_t *sys_tok
 psa_status_t
 proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t *output_len,
-                   const void *challenge_buf, size_t challenge_size,
+                   uint8_t *challenge_buf, size_t challenge_size,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size)
 {
-    
+    /* Step 1: Get IAT token */
+    uint8_t iat_token_buf[ATT_MAX_TOKEN_SIZE];
+    size_t iat_token_size = 0;
+
+    if (token_buf == NULL || token_size == NULL || token_buf_size == 0) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    psa_status_t status = att_get_iat(challenge_buf, challenge_size,
+                                      iat_token_buf, &iat_token_size);
+    if (status != PSA_SUCCESS) {
+        return status;
+    }
+
+    return pox_create_token(iat_token_buf, iat_token_size, faddr, output, token_buf, token_size);
 }
 
 psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
-                                  uintptr_t faddr, uintptr_t exec_output,
+                                  uintptr_t faddr, uint8_t *exec_output,
                                   uint8_t *report_buf, size_t *report_size)
 {
     static uint8_t scratch[POX_CBOR_SCRATCH_SIZE];

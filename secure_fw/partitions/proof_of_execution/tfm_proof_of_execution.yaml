@@ -27,7 +27,6 @@
   "mmio_regions": [],
   "irqs": [],
   "dependencies": [
-    "TFM_CRYPTO",
     "TFM_ATTESTATION_SERVICE"
   ]
 }

@@ -153,6 +153,8 @@ set(SYMMETRIC_INITIAL_ATTESTATION       OFF         CACHE BOOL      "Use symmetr
 set(ATTEST_KEY_BITS                     256         CACHE STRING    "The size of the initial attestation key in bits")
 set(PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE   0x250       CACHE STRING    "The maximum possible size of a token")
 
+set(TFM_PARTITION_PROOF_OF_EXECUTION    OFF         CACHE BOOL      "Enable Proof of Execution partition")
+
 set(TFM_PARTITION_PLATFORM              OFF         CACHE BOOL      "Enable Platform partition")
 
 ############################ Mbedcrypto configurations #########################

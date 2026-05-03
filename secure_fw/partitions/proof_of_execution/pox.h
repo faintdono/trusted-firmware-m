@@ -18,7 +18,7 @@ proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_l
 
 psa_status_t 
 pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
-                uintptr_t faddr, uintptr_t exec_output,
+                uintptr_t faddr, uint8_t exec_output,
                 uint8_t *report_buf, size_t *report_size);
 
 

@@ -125,5 +125,20 @@
          ]
       }
     },
+    {
+      "description": "TFM Proof of Execution Partition",
+      "manifest": "../secure_fw/partitions/proof_of_execution/tfm_proof_of_execution.yaml",
+      "output_path": "secure_fw/partitions/proof_of_execution",
+      "conditional": "TFM_PARTITION_PROOF_OF_EXECUTION",
+      "version_major": 0,
+      "version_minor": 1,
+      "pid": 272,
+      "linker_pattern": {
+        "library_list": [
+           "*tfm_*partition_pox.*"
+         ]
+      }
+    }
+
   ]
 }

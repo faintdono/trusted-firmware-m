@@ -139,6 +139,12 @@ if(PLATFORM_DEFAULT_CRYPTO_KEYS)
             DESTINATION ${INSTALL_INTERFACE_INC_DIR})
 endif()
 
+if(TFM_PARTITION_PROOF_OF_EXECUTION)
+        install(FILES       ${INTERFACE_INC_DIR}/psa/proof_of_execution.h
+                DESTINATION ${INSTALL_INTERFACE_INC_DIR}/psa)
+endif()
+
+
 ####################### export sources #########################################
 
 if (TFM_PARTITION_NS_AGENT_MAILBOX)

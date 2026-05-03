@@ -1,0 +1,2 @@
+menu "Proof Of Execution"
+    depends on TFM_PARTITION_PROOF_OF_EXECUTION

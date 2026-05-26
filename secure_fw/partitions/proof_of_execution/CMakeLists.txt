@@ -19,6 +19,8 @@ target_sources(tfm_app_rot_partition_pox
         pox_core.c
         pox_execute.c
         pox_deserializer.c
+        pox_iat_decoder.c
+        pox_encoder.c
 )
 
 # The generated sources

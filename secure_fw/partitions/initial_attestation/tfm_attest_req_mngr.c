@@ -179,7 +179,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    status = proof_of_execution(view.function_addr_le32, 
+    status = attest_proof_of_execution(view.function_addr_le32, 
                                view.input, 
                                view.input_len, 
                                view.output,

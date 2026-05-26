@@ -790,7 +790,7 @@ error:
 }
 
 static enum psa_attest_err_t
-pox_create_token(uintptr_t faddr,
+attest_pox_create_token(uintptr_t faddr,
                  const uint8_t *input,
                  const uint32_t input_len,
                  uint8_t *output,
@@ -870,7 +870,7 @@ error:
 }
 
 psa_status_t
-proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
+attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t *output_len,
                    const void *challenge_buf, size_t challenge_size,
                    void *token_buf, size_t token_buf_size,
@@ -897,7 +897,7 @@ proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_l
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
-    attest_err = pox_create_token(faddr, input, input_len, output, output_len, &challenge, &token, &completed_token);
+    attest_err = attest_pox_create_token(faddr, input, input_len, output, output_len, &challenge, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;

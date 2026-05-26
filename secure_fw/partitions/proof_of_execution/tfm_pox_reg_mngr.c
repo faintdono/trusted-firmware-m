@@ -8,12 +8,6 @@
 #include "tfm_pox_wire.h"
 #include "tfm_sp_log.h" // TF-M Secure Partition Logging
 
-// Securely stored values
-static uint8_t stored_challenge[CHALLENGE_SIZE];
-static uintptr_t stored_faddr;
-static int execution_output;
-
-
 
 static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 {
@@ -29,7 +23,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
                            ? msg->out_size[0]
                            : sizeof(token_buff);
     
-    bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
+    bytes_read = psa_read(msg -> handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size) {
         return PSA_ERROR_GENERIC_ERROR;
     }
@@ -75,7 +69,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 
     if (status == PSA_SUCCESS) {
         LOG_INFFMT("Proof of execution successful. Writing %u bytes to output\n", (unsigned int)token_size);
-        psa_write(msg->handle, 0, token_buff, token_size);
+        psa_write(msg -> handle, 0, token_buff, token_size);
     } else {
         LOG_INFFMT("ERROR: Proof of execution failed with status 0x%x\n", (unsigned int)status);
     }
@@ -96,24 +90,24 @@ psa_status_t pox_ipc_handler(psa_signal_t signal)
     uint8_t report_buf[REPORT_BUF_SIZE]; 
     size_t report_size = REPORT_BUF_SIZE;
 
-    switch (msg->type)
+    switch (msg.type)
     {
     case PSA_IPC_CONNECT:
-        psa_reply(msg->handle, PSA_SUCCESS);
+        psa_reply(msg.handle, PSA_SUCCESS);
         break;
 
     case PSA_IPC_CALL:
         status = psa_proof_of_execution(&msg);
-        psa_reply(msg->handle, status);
+        psa_reply(msg.handle, status);
         break;
 
     case PSA_IPC_DISCONNECT:
-        psa_reply(msg->handle, PSA_SUCCESS);
+        psa_reply(msg.handle, PSA_SUCCESS);
         break;
 
     default:
-        LOG_ERRFMT("[Secure] ERROR: Invalid message type received: %d\n", msg->type);
-        psa_reply(msg->handle, PSA_ERROR_PROGRAMMER_ERROR);
+        LOG_ERRFMT("[Secure] ERROR: Invalid message type received: %d\n", msg.type);
+        psa_reply(msg.handle, PSA_ERROR_PROGRAMMER_ERROR);
     }
 
     return PSA_SUCCESS;

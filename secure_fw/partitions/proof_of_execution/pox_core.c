@@ -7,7 +7,9 @@
 #include "tfm_attest_iat_defs.h"
 
 #include "qcbor/qcbor.h"
-
+#include "t_cose/t_cose_sign1_sign.h"
+#include "t_cose/t_cose_key.h"
+#include "tfm_sp_log.h"
 
 static psa_status_t sign_pox_payload(const uint8_t *payload, size_t payload_len,
                                      uint8_t *report_buf, size_t report_buf_sz, size_t *report_len) 

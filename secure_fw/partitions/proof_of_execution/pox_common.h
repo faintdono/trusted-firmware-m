@@ -1,70 +1,102 @@
+/*
+ * pox_common.h
+ *
+ * Shared types for the PoX IAT decoder and encoder.
+ * IATClaims mirrors the EAT claims emitted by the attestation service,
+ * with CCA-only fields guarded by ATTEST_TOKEN_PROFILE_ARM_CCA.
+ */
+
 #ifndef POX_COMMON_H
 #define POX_COMMON_H
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include "config_tfm.h"   /* pulls in ATTEST_TOKEN_PROFILE_* defines */
 
-/* Sizing limits */
-#define IAT_MAX_NONCE_LEN               64
-#define IAT_MAX_INSTANCE_ID_LEN         33
-#define IAT_MAX_IMPL_ID_LEN             32
-#define IAT_MAX_BOOT_SEED_LEN           32
-#define IAT_MAX_PROFILE_STR             80
-#define IAT_MAX_CERT_REF_STR            64
-#define IAT_MAX_VERIF_SVC_STR           64
-#define IAT_MAX_SW_COMPONENTS           16
-#define IAT_MAX_MTYPE_STR               32
-#define IAT_MAX_VERSION_STR             24
-#define IAT_MAX_MEASUREMENT_LEN         32
-#define IAT_MAX_SIGNER_ID_LEN           32
-#define IAT_MAX_MEASDESC_STR            32
-#define IAT_MAX_PLATFORM_CONFIG_LEN     64
-#define IAT_MAX_HASH_ALGO_STR           32
+#define MAX_SW_COMPONENTS       16
+#define MAX_MEASUREMENT_LEN     64
+#define MAX_SIGNER_ID_LEN       64
+#define MAX_VERSION_LEN         32
+#define MAX_TYPE_LEN            32
+#define MAX_MEAS_DESC_LEN       64
 
 typedef struct {
-    char    type[IAT_MAX_MTYPE_STR];
-    bool    has_type;
-    uint8_t measurement[IAT_MAX_MEASUREMENT_LEN];
-    size_t  measurement_len;
-    char    version[IAT_MAX_VERSION_STR];
-    bool    has_version;
-    uint8_t signer_id[IAT_MAX_SIGNER_ID_LEN];
-    size_t  signer_id_len;
-    bool    has_signer_id;
-    char    meas_desc[IAT_MAX_MEASDESC_STR];
-    bool    has_meas_desc;
+    bool     has_type;
+    char     type[MAX_TYPE_LEN];
+
+    uint8_t  measurement[MAX_MEASUREMENT_LEN];
+    uint32_t measurement_len;
+
+    bool     has_version;
+    char     version[MAX_VERSION_LEN];
+
+    bool     has_signer_id;
+    uint8_t  signer_id[MAX_SIGNER_ID_LEN];
+    uint32_t signer_id_len;
+
+    bool     has_meas_desc;
+    char     meas_desc[MAX_MEAS_DESC_LEN];
 } SwComponent;
 
 typedef struct {
-    uint8_t  nonce[IAT_MAX_NONCE_LEN];
-    size_t   nonce_len;
-    uint8_t  instance_id[IAT_MAX_INSTANCE_ID_LEN];
-    size_t   instance_id_len;
-    uint8_t  implementation_id[IAT_MAX_IMPL_ID_LEN];
-    size_t   implementation_id_len;
+    /* Nonce */
+    uint8_t  nonce[64];
+    uint32_t nonce_len;
+
+    /* Instance ID */
+    uint8_t  instance_id[33];
+    uint32_t instance_id_len;
+
+    /* Implementation ID */
+    uint8_t  implementation_id[32];
+    uint32_t implementation_id_len;
+
+    /* Security lifecycle */
     uint32_t security_lifecycle;
-    char     profile[IAT_MAX_PROFILE_STR];
+
+    /* Profile definition */
     bool     has_profile;
-    SwComponent sw[IAT_MAX_SW_COMPONENTS];
-    size_t      sw_count;
-    bool        has_sw;
-    int32_t  client_id;
-    bool     has_client_id;
-    uint8_t  boot_seed[IAT_MAX_BOOT_SEED_LEN];
-    size_t   boot_seed_len;
+    char     profile[64];
+
+#if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
+    /* Boot seed (PSA_IOT_1 / PSA_2_0_0 only) */
     bool     has_boot_seed;
-    char     cert_ref[IAT_MAX_CERT_REF_STR];
+    uint8_t  boot_seed[32];
+    uint32_t boot_seed_len;
+
+    /* Client ID */
+    bool     has_client_id;
+    int32_t  client_id;
+
+    /* Certification reference (optional) */
     bool     has_cert_ref;
-    uint32_t no_sw_components_val;
-    bool     has_no_sw_components;
-    char     verif_service[IAT_MAX_VERIF_SVC_STR];
-    bool     has_verif_service;
-    uint8_t  platform_config[IAT_MAX_PLATFORM_CONFIG_LEN];
-    size_t   platform_config_len;
+    char     cert_ref[64];
+#endif
+
+#if ATTEST_TOKEN_PROFILE_ARM_CCA
+    /* Platform config (CCA only) */
     bool     has_platform_config;
-    char     hash_algo_id[IAT_MAX_HASH_ALGO_STR];
+    uint8_t  platform_config[64];
+    uint32_t platform_config_len;
+
+    /* Platform hash algo ID (CCA only) */
     bool     has_hash_algo_id;
+    char     hash_algo_id[32];
+#endif
+
+    /* Verification service (optional, all profiles) */
+    bool     has_verif_service;
+    char     verif_service[128];
+
+    /* SW components */
+    bool        has_sw;
+    SwComponent sw[MAX_SW_COMPONENTS];
+    size_t      sw_count;
+
+    /* No-SW-components fallback */
+    bool    has_no_sw_components;
+    int32_t no_sw_components_val;
 } IATClaims;
 
 #endif /* POX_COMMON_H */

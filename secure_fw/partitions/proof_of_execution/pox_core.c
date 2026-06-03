@@ -63,7 +63,7 @@ static psa_status_t get_iat(const uint8_t *challenge, size_t challenge_size,
 /**
  * @brief Sign a raw CBOR payload as a COSE_Sign1 structure.
  *
- * Uses the PoX signing key (POX_SIGNING_KEY_ID) with ES256.
+ * Uses the PoX volatile signing key (handle from pox_get_signing_key_handle()) with ES256.
  *
  * @param[in]  payload        CBOR bytes to sign
  * @param[in]  payload_len    Length of payload
@@ -81,10 +81,12 @@ static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
     enum t_cose_err_t err;
 
     /*
-     * Initialise the PSA key handle directly into t_cose_key, matching
-     * the pattern used in attest_asymmetric_key.c / attest_token_encode.c.
+     * Use the actual volatile handle returned by psa_import_key() at
+     * partition startup, not POX_SIGNING_KEY_ID. For volatile keys,
+     * psa_set_key_id() is ignored by PSA Crypto and the real handle is
+     * whatever imported_id psa_import_key() assigned (typically 0x40000000+).
      */
-    signing_key.key.handle = (uint64_t)POX_SIGNING_KEY_ID;
+    signing_key.key.handle = (uint64_t)pox_get_signing_key_handle();
 
     t_cose_sign1_sign_init(&sign_ctx, 0, T_COSE_ALGORITHM_ES256);
     t_cose_sign1_set_signing_key(&sign_ctx, signing_key, NULL_Q_USEFUL_BUF_C);
@@ -127,8 +129,13 @@ proof_of_execution(uintptr_t faddr,
     if (status != PSA_SUCCESS) {
         return status;
     }
+    LOG_INFFMT("[PoX] IAT token size: %u\n", (unsigned int)iat_token_size);
 
-    /* Steps 2-5 delegated to pox_create_token */
+    /* Steps 2-5 delegated to pox_create_token.
+     * Initialise *token_size with the buffer capacity so pox_create_token
+     * can pass it as the report buffer size to sign_pox_token.
+     */
+    *token_size = token_buf_size;
     return pox_create_token(iat_token_buf, iat_token_size,
                             faddr, input, input_len,
                             output, output_len,
@@ -142,8 +149,8 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
                                uint8_t *report_buf, size_t *report_size)
 {
     static uint8_t cbor_scratch[POX_CBOR_SCRATCH_SIZE];
+    static IATClaims claims;
     size_t cbor_len = 0;
-    IATClaims claims;
 
     /* Step 2: Decode the IAT token into structured EAT claims */
     psa_status_t status = decode_iat_to_claims(iat_token_buf, iat_token_sz,
@@ -163,7 +170,7 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
         } else {
             exec_result = ns_execute_void(faddr);
         }
-        LOG_INFFMT("[PoX] ns_execute returned %d\n", exec_result);
+        LOG_INFFMT("[PoX] ns_execute return code: %d\n", exec_result);
     }
 
     /*
@@ -176,6 +183,8 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     int exec_output = (output != NULL && output_len != NULL && *output_len > 0)
                       ? (int)output[0]
                       : exec_result;
+
+    LOG_INFFMT("[PoX] Execution value: 0x%x (%d)\n", exec_output, exec_output);
 
     status = encode_pox_claims(&claims, faddr, exec_output,
                                cbor_scratch, sizeof(cbor_scratch), &cbor_len);

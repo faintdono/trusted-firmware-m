@@ -8,3 +8,35 @@ menuconfig TFM_PARTITION_PROOF_OF_EXECUTION
     bool "Proof of Execution"
     depends on TFM_PARTITION_INITIAL_ATTESTATION
     default n
+
+if TFM_PARTITION_PROOF_OF_EXECUTION
+
+config POX_ALLOW_RUNTIME_KEY_OVERRIDE
+    bool "Allow runtime override of the PoX signing key"
+    default n
+    help
+      If enabled, compiles in pox_set_signing_key(), which lets a
+      caller (e.g. a test partition) replace the hardcoded PoX
+      signing key at runtime with a 32-byte ECDSA P-256 private
+      scalar.
+
+      Leave this disabled in production: the only signer should be
+      the key hardcoded in pox_key.c.
+
+config POX_ALLOW_PLACEHOLDER_KEY
+    bool "Allow the placeholder PoX signing key (UNSAFE)"
+    default n
+    depends on TFM_BUILD_TYPE_DEBUG
+    help
+      The placeholder key shipped in pox_key.c is publicly known and
+      must never be used in production. By default the build will fail
+      with a hard error if the key has not been replaced.
+
+      Enable this option ONLY for initial bring-up or CI builds where
+      a real key is not yet available. It is intentionally restricted
+      to debug builds (TFM_BUILD_TYPE_DEBUG) and cannot be set in
+      release configurations.
+
+      NEVER enable this on a production device.
+
+endif

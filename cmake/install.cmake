@@ -140,8 +140,10 @@ if(PLATFORM_DEFAULT_CRYPTO_KEYS)
 endif()
 
 if(TFM_PARTITION_PROOF_OF_EXECUTION)
-        install(FILES       ${INTERFACE_INC_DIR}/psa/proof_of_execution.h
-                DESTINATION ${INSTALL_INTERFACE_INC_DIR}/psa)
+    install(FILES       ${INTERFACE_INC_DIR}/psa/proof_of_execution.h
+            DESTINATION ${INSTALL_INTERFACE_INC_DIR}/psa)
+    install(FILES       ${INTERFACE_INC_DIR}/tfm_pox_defs.h
+            DESTINATION ${INSTALL_INTERFACE_INC_DIR})
 endif()
 
 
@@ -186,6 +188,11 @@ endif()
 if (TFM_PARTITION_INITIAL_ATTESTATION)
     install(FILES       ${INTERFACE_SRC_DIR}/tfm_attest_api.c
                         ${INTERFACE_SRC_DIR}/tfm_pox_wire.c
+            DESTINATION ${INSTALL_INTERFACE_SRC_DIR})
+endif()
+
+if (TFM_PARTITION_PROOF_OF_EXECUTION)
+    install(FILES       ${INTERFACE_SRC_DIR}/tfm_pox_api.c
             DESTINATION ${INSTALL_INTERFACE_SRC_DIR})
 endif()
 

@@ -505,7 +505,7 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
 {
     attest_token_encode_add_integer(token_ctx,
                                     IAT_POX_FADDR,
-                                    (int64_t)faddr);
+                                    (int64_t)*faddr);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
@@ -836,7 +836,7 @@ attest_pox_create_token(uintptr_t faddr,
     //     execute_value = ns_execute(faddr, input, input_len);
     // }
     // execute_value = ns_execute_void(faddr);
-    LOG_INFFMT("[Secure] INFO: Non-secure function return value: %d\n", *output);
+    LOG_INFFMT("[Secure] INFO: Execution output value: %d\n", *output);
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);
     attest_err = attest_add_execution_value(&attest_token_ctx,

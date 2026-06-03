@@ -147,6 +147,18 @@ static psa_status_t pox_ipc_handler(psa_signal_t signal)
 psa_status_t pox_init(void)
 {
     psa_signal_t signals;
+    psa_status_t status;
+
+    /* Register the hardcoded PoX signing key once, at partition startup.
+     * Without this, t_cose_sign1_sign() in pox_core.c will fail because
+     * POX_SIGNING_KEY_ID would not resolve to any real PSA key.
+     */
+    status = pox_register_signing_key();
+    if (status != PSA_SUCCESS) {
+        LOG_ERRFMT("[PoX] FATAL: cannot register signing key (%d)\n",
+                   (int)status);
+        psa_panic();
+    }
 
     while (1) {
         signals = psa_wait(PSA_WAIT_ANY, PSA_BLOCK);

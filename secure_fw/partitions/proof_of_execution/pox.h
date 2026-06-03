@@ -9,16 +9,70 @@
 
 #define POX_CBOR_SCRATCH_SIZE   2048
 
+/* Maximum size for an IAT token buffer */
+#define ATT_MAX_TOKEN_SIZE      0x240
+
+/* ------------------------------------------------------------------ */
+/* PoX signing key configuration                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The PSA key id under which the PoX signing key is registered.
+ * Must be in the user range [PSA_KEY_ID_USER_MIN, PSA_KEY_ID_USER_MAX]
+ * and must not clash with any other key id in the system.
+ */
 #ifndef POX_SIGNING_KEY_ID
 #  define POX_SIGNING_KEY_ID    ((psa_key_id_t)0x00000101U)
 #endif
 
-/* Maximum size for an IAT token buffer */
-#define ATT_MAX_TOKEN_SIZE      0x240
+/*
+ * Compile in pox_set_signing_key() to replace the hardcoded key at
+ * runtime. Controlled by Kconfig (POX_ALLOW_RUNTIME_KEY_OVERRIDE).
+ * If not defined by the build system, default to off.
+ */
+#ifndef POX_ALLOW_RUNTIME_KEY_OVERRIDE
+#  define POX_ALLOW_RUNTIME_KEY_OVERRIDE 0
+#endif
+
+/* ------------------------------------------------------------------ */
+/* API                                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Import the hardcoded PoX signing key into PSA Crypto as a
+ *        VOLATILE ECDSA P-256 key pair. Call exactly once from pox_init().
+ *
+ *        For volatile keys psa_set_key_id() is ignored by PSA Crypto;
+ *        the real handle is stored internally and retrieved via
+ *        pox_get_signing_key_handle().
+ */
+psa_status_t pox_register_signing_key(void);
+
+/**
+ * @brief Return the volatile PSA key handle assigned by psa_import_key()
+ *        during pox_register_signing_key(). Returns 0 if the key has not
+ *        been imported yet.
+ */
+psa_key_id_t pox_get_signing_key_handle(void);
+
+#if POX_ALLOW_RUNTIME_KEY_OVERRIDE
+/**
+ * @brief Replace the currently registered PoX signing key with a
+ *        caller-supplied 32-byte ECDSA P-256 private scalar.
+ *
+ * @param priv_key       Pointer to 32 raw private-scalar bytes (big-endian).
+ * @param priv_key_len   Must be exactly 32.
+ *
+ * @retval PSA_SUCCESS                 New key is in place.
+ * @retval PSA_ERROR_INVALID_ARGUMENT  Bad length or NULL pointer.
+ * @retval Other PSA error             Import/destroy failed.
+ */
+psa_status_t pox_set_signing_key(const uint8_t *priv_key, size_t priv_key_len);
+#endif
 
 /**
  * @brief Full proof-of-execution flow:
- *        get IAT → decode → execute NS function → encode PoX claims → sign.
+ *        get IAT -> decode -> execute NS function -> encode PoX claims -> sign.
  *
  * @param faddr           Non-secure function address to execute
  * @param input           Input buffer for the NS function (may be NULL)

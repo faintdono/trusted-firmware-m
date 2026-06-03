@@ -52,18 +52,9 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
                                    PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    LOG_INFFMT("[PoX] deserialize OK: func=0x%x in_len=%u out_len=%u "
-               "challenge_len=%u\n",
-               (unsigned int)view.function_addr_le32,
-               (unsigned int)view.input_len,
-               (unsigned int)view.output_len,
-               (unsigned int)view.challenge_len);
-
-    /* Sanity-check that non-zero lengths have corresponding addresses */
     if ((view.input_len  > 0 && view.input     == 0) ||
         (view.output_len > 0 && view.output    == 0) ||
         (view.challenge_len > 0 && view.challenge == NULL)) {
-        LOG_INFFMT("[PoX] ERROR: inconsistent pointers/lengths\n");
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -74,13 +65,6 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    /*
-     * view.input / view.output hold raw NS addresses (uintptr_t).
-     * Cast them to pointers for the proof_of_execution call.
-     *
-     * view.output_len comes from the wire as a value; proof_of_execution
-     * takes uint32_t * so we use a local copy.
-     */
     uint32_t output_len = view.output_len;
 
     status = proof_of_execution(
@@ -149,10 +133,6 @@ psa_status_t pox_init(void)
     psa_signal_t signals;
     psa_status_t status;
 
-    /* Register the hardcoded PoX signing key once, at partition startup.
-     * Without this, t_cose_sign1_sign() in pox_core.c will fail because
-     * POX_SIGNING_KEY_ID would not resolve to any real PSA key.
-     */
     status = pox_register_signing_key();
     if (status != PSA_SUCCESS) {
         LOG_ERRFMT("[PoX] FATAL: cannot register signing key (%d)\n",

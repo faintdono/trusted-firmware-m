@@ -9,8 +9,7 @@
 #include "psa/client.h"
 #include "psa_manifest/sid.h"
 #include "tfm_attest_defs.h"
-#include "tfm_pox_wire.h"
-#include <stdio.h>
+#include "tfm_pox_wire.h"g
 
 psa_status_t
 psa_initial_attest_get_token(const uint8_t *auth_challenge,
@@ -99,13 +98,7 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
         .output = (uintptr_t)ns_output,        /* may be NULL if output_len == 0 */
         .output_len = ns_output_sz
     };
-    printf("Preparing POX call:\n");
-                        printf(" - Challenge len = %u\n", r.challenge_len);
-                        printf(" - Func addr ID = 0x%x\n", r.function_addr);
-                        printf(" - Input    = 0x%x\n", r.input);
-                        printf(" - Input len   = %d\n", r.input_len);
-                        printf(" - Output   = 0x%x\n", r.output);
-                        printf(" - Output len  = %d\n", r.output_len);
+
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
         /* handle error */
         printf("Error: serialize_ns_pox_call() failed\n");

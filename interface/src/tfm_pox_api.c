@@ -5,17 +5,6 @@
  *
  */
 
-/*
- * NS-side API for the standalone Proof-of-Execution (PoX) secure partition
- * (TFM_SP_POX, SID 0xFFFFF0E1).
- *
- * Mirrors the pattern of tfm_attest_api.c:
- *   1. Build an ns_pox_call_req_t.
- *   2. Serialise it into a stack buffer via serialize_ns_pox_call().
- *   3. Open a connection to TFM_POX_SERVICE, send the buffer, receive the
- *      signed COSE_Sign1 PoX token, close the connection.
- */
-
 #include <stdint.h>
 #include <stddef.h>
 

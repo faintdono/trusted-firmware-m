@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: Apache-2.0 */
 #include "tfm_pox_wire.h"
 #include <string.h>
 #include <stdbool.h>

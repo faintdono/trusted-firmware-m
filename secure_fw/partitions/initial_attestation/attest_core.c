@@ -1,10 +1,3 @@
-/*
- * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
- *
- * SPDX-License-Identifier: BSD-3-Clause
- *
- */
-
 #include <stdint.h>
 #include <string.h>
 #include <stddef.h>
@@ -826,24 +819,16 @@ attest_pox_create_token(uintptr_t faddr,
         attest_err = error_mapping_to_psa_attest_err_t(token_err);
         goto error;
     }
-    LOG_INFFMT("[Secure] INFO: Non-secure function: x0%x\n", faddr);
-
     if (input_len != 0)
     {
         execute_value = ns_execute(faddr, input, input_len, output, output_len);
     }
-    // } else {
-    //     execute_value = ns_execute(faddr, input, input_len);
-    // }
-    // execute_value = ns_execute_void(faddr);
-    LOG_INFFMT("[Secure] INFO: Execution output value: %d\n", *output);
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);
     attest_err = attest_add_execution_value(&attest_token_ctx,
                                             output);
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
-    LOG_INFFMT("[Secure] INFO: Add challenge value\n");
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;
@@ -851,20 +836,17 @@ attest_pox_create_token(uintptr_t faddr,
 
     for (i = 0; i < ARRAY_LENGTH(claim_query_funcs); ++i)
     {
-        /* Calling the attest_add_XXX_claim functions */
         attest_err = claim_query_funcs[i](&attest_token_ctx);
         if (attest_err != PSA_ATTEST_ERR_SUCCESS)
         {
             goto error;
         }
     }
-    LOG_INFFMT("[Secure] INFO: Add all claims into token\n");
     /* Finish up creating the token. This is where the actual signature
      * is generated. This finishes up the CBOR encoding too.
      */
     token_err = attest_token_encode_finish(&attest_token_ctx, completed_token);
-    attest_err = error_mapping_to_psa_attest_err_t(token_err);
-    LOG_INFFMT("[Secure] INFO: Finish creating token\n");
+    attest_err = error_mapping_to_psa_attest_err_t(token_err);;
 error:
     return attest_err;
 }

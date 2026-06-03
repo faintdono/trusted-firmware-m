@@ -159,17 +159,9 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
                                    PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    /* Log deserialization result and perform a basic sanity check */
-    LOG_INFFMT("deserialize_ns_pox_call succeeded: func=0x%x, in_len=%u, out_len=%u, challenge_len=%u\n",
-               (unsigned int)view.function_addr_le32,
-               (unsigned int)view.input_len,
-               (unsigned int)view.output_len,
-               (unsigned int)view.challenge_len);
-
     if ((view.input_len > 0 && view.input == NULL) ||
         (view.output_len > 0 && view.output == NULL) ||
         (view.challenge_len > 0 && view.challenge == NULL)) {
-        LOG_INFFMT("ERROR: Deserialized view has inconsistent pointers/lengths\n");
         return PSA_ERROR_INVALID_ARGUMENT;
     }
     if (!view.challenge ||
@@ -191,10 +183,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
                                &token_size);
 
     if (status == PSA_SUCCESS) {
-        LOG_INFFMT("Proof of execution successful. Writing %u bytes to output\n", (unsigned int)token_size);
         psa_write(msg->handle, 0, token_buff, token_size);
-    } else {
-        LOG_INFFMT("ERROR: Proof of execution failed with status 0x%x\n", (unsigned int)status);
     }
     
     return status;

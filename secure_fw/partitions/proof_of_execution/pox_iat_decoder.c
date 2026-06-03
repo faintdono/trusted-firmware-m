@@ -361,9 +361,5 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    LOG_INFFMT("[PoX] decode_iat: OK  nonce_len=%u  sw_count=%u\n",
-               (unsigned int)claims->nonce_len,
-               (unsigned int)claims->sw_count);
-
     return PSA_SUCCESS;
 }

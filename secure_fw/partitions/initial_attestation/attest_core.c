@@ -854,6 +854,19 @@ attest_pox_create_token(uintptr_t faddr,
         attest_token_encode_add_integer(&attest_token_ctx,
                                         POX_LABEL_CALLER_ID,
                                         (int64_t)sess->caller_id);
+#if POX_SESSION_AUTH_ATT
+        /* Verifier authorization signature: embedded whenever session
+         * auth is on (i.e. after it verified), making the token
+         * self-contained evidence for third-party auditors. */
+        if (sess->sess_sig != NULL && sess->sess_sig_len > 0)
+        {
+            struct q_useful_buf_c ssig;
+            ssig.ptr = sess->sess_sig;
+            ssig.len = sess->sess_sig_len;
+            attest_token_encode_add_bstr(&attest_token_ctx,
+                                         POX_LABEL_SESS_SIG, &ssig);
+        }
+#endif
 #if POX_BOOT_EPOCH
         attest_token_encode_add_integer(&attest_token_ctx,
                                         POX_LABEL_BOOT_EPOCH,

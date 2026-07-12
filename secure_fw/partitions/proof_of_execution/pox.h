@@ -11,7 +11,7 @@
 #define POX_CBOR_SCRATCH_SIZE   2048
 
 /* Maximum size for an IAT token buffer */
-#define ATT_MAX_TOKEN_SIZE      0x240
+#define ATT_MAX_TOKEN_SIZE      0x2C0  /* headroom for the embedded sess_sig claim */
 
 /* ------------------------------------------------------------------ */
 /* PoX signing key configuration                                        */

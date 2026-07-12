@@ -23,7 +23,7 @@ extern "C" {
  *
  * Sized to match ATT_MAX_TOKEN_SIZE on the secure side (0x240 bytes).
  */
-#define PSA_POX_MAX_TOKEN_SIZE  0x240U
+#define PSA_POX_MAX_TOKEN_SIZE  0x2C0U /* headroom for the embedded sess_sig claim */
 
 /**
  * \brief Request a Proof-of-Execution token from the secure partition.

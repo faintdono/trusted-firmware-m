@@ -46,6 +46,10 @@ typedef struct {
     const uint8_t *session_id;
     size_t         session_id_len;
     int32_t        caller_id;          /* msg->client_id, SPM-supplied */
+    /* Verifier transcript signature; emitted as a claim whenever
+     * session auth is enabled (i.e. only after it verified). */
+    const uint8_t *sess_sig;
+    size_t         sess_sig_len;
 #if POX_BOOT_EPOCH
     uint32_t       boot_epoch;
 #endif

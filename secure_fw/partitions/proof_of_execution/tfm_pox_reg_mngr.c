@@ -97,6 +97,8 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         .session_id     = view.session_id,
         .session_id_len = view.session_id_len,
         .caller_id      = msg->client_id,
+        .sess_sig       = view.sess_sig,
+        .sess_sig_len   = view.sess_sig_len,
 #if POX_BOOT_EPOCH
         .boot_epoch     = pox_session_get_epoch(),
 #endif

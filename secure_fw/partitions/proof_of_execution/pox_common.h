@@ -21,6 +21,10 @@
 #define POX_LABEL_SESSION_ID    (-65537)
 #define POX_LABEL_CALLER_ID     (-65538)
 #define POX_LABEL_BOOT_EPOCH    (-65539)
+/* Verifier transcript signature (64B raw r||s), embedded whenever
+ * session auth is enabled: makes the token self-contained
+ * authorization evidence for third parties. */
+#define POX_LABEL_SESS_SIG      (-65540)
 
 #define MAX_SW_COMPONENTS       16
 #define MAX_MEASUREMENT_LEN     64

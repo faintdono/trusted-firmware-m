@@ -74,6 +74,15 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
         /* SPM-supplied, cannot be forged by the NS caller */
         QCBOREncode_AddInt64ToMapN(&ec, POX_LABEL_CALLER_ID,
                                    (int64_t)sess->caller_id);
+#if POX_SESSION_AUTH
+        /* Verifier authorization signature: embedded whenever session
+         * auth is on (i.e. after it verified), making the token
+         * self-contained evidence for third-party auditors. */
+        if (sess->sess_sig != NULL && sess->sess_sig_len > 0) {
+            QCBOREncode_AddBytesToMapN(&ec, POX_LABEL_SESS_SIG,
+                (UsefulBufC){ sess->sess_sig, sess->sess_sig_len });
+        }
+#endif
 #if POX_BOOT_EPOCH
         QCBOREncode_AddUInt64ToMapN(&ec, POX_LABEL_BOOT_EPOCH,
                                     (uint64_t)sess->boot_epoch);

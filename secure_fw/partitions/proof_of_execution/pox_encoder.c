@@ -19,6 +19,7 @@
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
                                int              exec_output,
+                               const pox_session_ctx_t *sess,
                                uint8_t         *scratch,
                                size_t           scratch_sz,
                                size_t          *encoded_len)
@@ -60,6 +61,23 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     if (iat->nonce_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_NONCE,
             (UsefulBufC){ iat->nonce, iat->nonce_len });
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Session-authentication claims (private-use labels)                */
+    /* ---------------------------------------------------------------- */
+    if (sess != NULL) {
+        if (sess->session_id != NULL && sess->session_id_len > 0) {
+            QCBOREncode_AddBytesToMapN(&ec, POX_LABEL_SESSION_ID,
+                (UsefulBufC){ sess->session_id, sess->session_id_len });
+        }
+        /* SPM-supplied, cannot be forged by the NS caller */
+        QCBOREncode_AddInt64ToMapN(&ec, POX_LABEL_CALLER_ID,
+                                   (int64_t)sess->caller_id);
+#if POX_BOOT_EPOCH
+        QCBOREncode_AddUInt64ToMapN(&ec, POX_LABEL_BOOT_EPOCH,
+                                    (uint64_t)sess->boot_epoch);
+#endif
     }
 
     /* ---------------------------------------------------------------- */

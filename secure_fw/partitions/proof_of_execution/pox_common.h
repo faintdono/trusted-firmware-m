@@ -14,6 +14,14 @@
 #include <stdbool.h>
 #include "config_tfm.h"   /* pulls in ATTEST_TOKEN_PROFILE_* defines */
 
+/*
+ * PoX session-authentication claim labels: CBOR private-use range
+ * (negative, below the -65536 boundary reserved by CoRIM/EAT).
+ */
+#define POX_LABEL_SESSION_ID    (-65537)
+#define POX_LABEL_CALLER_ID     (-65538)
+#define POX_LABEL_BOOT_EPOCH    (-65539)
+
 #define MAX_SW_COMPONENTS       16
 #define MAX_MEASUREMENT_LEN     64
 #define MAX_SIGNER_ID_LEN       64

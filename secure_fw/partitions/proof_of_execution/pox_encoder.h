@@ -2,15 +2,20 @@
 #define POX_ENCODER_H
 
 #include "pox_common.h"
+#include "pox_session.h"
 #include "psa/error.h"
 
 /**
  * @brief Encode the PoX CBOR payload from decoded IAT claims plus
- *        the proof-of-execution extension claims (faddr, exec_output).
+ *        the proof-of-execution extension claims (faddr, exec_output)
+ *        and the session-authentication claims (session_id, caller_id
+ *        [, boot_epoch]).
  *
  * @param[in]  iat          Decoded EAT claims from the IAT token
  * @param[in]  faddr        Address of the non-secure function that was executed
  * @param[in]  exec_output  Return value / output byte from the NS execution
+ * @param[in]  sess         Validated session context; may be NULL (no
+ *                          session claims are emitted then)
  * @param[out] scratch      Buffer to write the encoded CBOR into
  * @param[in]  scratch_sz   Size of scratch buffer
  * @param[out] encoded_len  Number of bytes written
@@ -20,6 +25,7 @@
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
                                int              exec_output,
+                               const pox_session_ctx_t *sess,
                                uint8_t         *scratch,
                                size_t           scratch_sz,
                                size_t          *encoded_len);

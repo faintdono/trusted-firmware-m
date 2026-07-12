@@ -22,6 +22,37 @@ static inline bool add_ov(size_t a, size_t b, size_t *o){
 #endif
 }
 
+/* ---------- Shared request validation ---------- */
+static ser_status_t validate_req(const ns_pox_call_req_t *req)
+{
+    if (!req) return SER_EINVAL;
+    if (!req->challenge) return SER_EINVAL;
+    if (req->challenge_len < POX_CHALLENGE_LEN_MIN ||
+        req->challenge_len > POX_CHALLENGE_LEN_MAX) return SER_EINVAL;
+    if (req->input_len && !req->input) return SER_EINVAL;
+
+    /* output addr/len must be both zero or both non-zero */
+    {
+        bool has_out_addr = (req->output     != 0u);
+        bool has_out_len  = (req->output_len != 0u);
+        if (has_out_addr != has_out_len) return SER_EINVAL;
+    }
+
+    /* session id/sig must be both absent or both present */
+    {
+        bool has_sid = (req->session_id != NULL);
+        bool has_sig = (req->sess_sig   != NULL);
+        if (has_sid != has_sig) return SER_EINVAL;
+        if (has_sid) {
+            if (req->session_id_len < POX_SESSION_ID_MIN ||
+                req->session_id_len > POX_SESSION_ID_MAX) return SER_EINVAL;
+            if (req->sess_sig_len != POX_SESS_SIG_LEN) return SER_EINVAL;
+        }
+    }
+
+    return SER_OK;
+}
+
 /* ---------- TLV emitter ---------- */
 static ser_status_t put_tlv(uint8_t *out, size_t cap, size_t *off,
                             uint16_t type, const void *val, uint32_t len,
@@ -42,18 +73,10 @@ static ser_status_t put_tlv(uint8_t *out, size_t cap, size_t *off,
 
 ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
 {
-    if (!req || !needed) return SER_EINVAL;
-    if (!req->challenge) return SER_EINVAL;
-    if (req->challenge_len < POX_CHALLENGE_LEN_MIN ||
-        req->challenge_len > POX_CHALLENGE_LEN_MAX) return SER_EINVAL;
-    if (req->input_len && !req->input) return SER_EINVAL;
+    if (!needed) return SER_EINVAL;
 
-    /* output addr/len must be both zero or both non-zero */
-    {
-        bool has_out_addr = (req->output     != 0u);
-        bool has_out_len  = (req->output_len != 0u);
-        if (has_out_addr != has_out_len) return SER_EINVAL;
-    }
+    ser_status_t vst = validate_req(req);
+    if (vst != SER_OK) return vst;
 
     size_t n = 0, tmp;
 
@@ -74,6 +97,12 @@ ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
         if (add_ov(n, 8u + 4u, &tmp)) return SER_E2BIG; n = tmp;
     }
 
+    /* SESSION_ID + SESS_SIG TLVs (iff session present) */
+    if (req->session_id != NULL) {
+        if (add_ov(n, 8u + (size_t)req->session_id_len, &tmp)) return SER_E2BIG; n = tmp;
+        if (add_ov(n, 8u + (size_t)POX_SESS_SIG_LEN, &tmp))    return SER_E2BIG; n = tmp;
+    }
+
     /* CRC (optional) */
     if (req->add_crc32) {
         if (add_ov(n, 4u, &tmp)) return SER_E2BIG; n = tmp;
@@ -86,18 +115,10 @@ ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
 ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
                                    uint8_t *out, size_t cap, size_t *out_len)
 {
-    if(!req || !out || !out_len) return SER_EINVAL;
-    if(!req->challenge) return SER_EINVAL;
-    if(req->challenge_len < POX_CHALLENGE_LEN_MIN ||
-       req->challenge_len > POX_CHALLENGE_LEN_MAX) return SER_EINVAL;
-    if(req->input_len && !req->input) return SER_EINVAL;
+    if (!out || !out_len) return SER_EINVAL;
 
-    /* output addr/len must be both zero or both non-zero */
-    {
-        bool has_out_addr = (req->output     != 0u);
-        bool has_out_len  = (req->output_len != 0u);
-        if (has_out_addr != has_out_len) return SER_EINVAL;
-    }
+    ser_status_t vst = validate_req(req);
+    if (vst != SER_OK) return vst;
 
     size_t off = 0;
     if (cap < POX_WIRE_HEADER_LEN) return SER_E2BIG;
@@ -142,6 +163,18 @@ ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
         uint8_t tmp[4];
         le32_store(tmp, (uint32_t)req->output);
         ser_status_t st = put_tlv(out, cap, &off, POX_TLV_OUTPUT_ADDR, tmp, 4, &tlv_count);
+        if (st != SER_OK) return st;
+    }
+
+    /* SESSION_ID + SESS_SIG iff session present (validated above) */
+    if (req->session_id != NULL) {
+        ser_status_t st = put_tlv(out, cap, &off, POX_TLV_SESSION_ID,
+                                  req->session_id, req->session_id_len,
+                                  &tlv_count);
+        if (st != SER_OK) return st;
+
+        st = put_tlv(out, cap, &off, POX_TLV_SESS_SIG,
+                     req->sess_sig, POX_SESS_SIG_LEN, &tlv_count);
         if (st != SER_OK) return st;
     }
 

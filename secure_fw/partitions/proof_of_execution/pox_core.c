@@ -24,6 +24,8 @@
 #include "t_cose/t_cose_common.h"
 #include "tfm_sp_log.h"
 
+#include <string.h>
+
 static psa_status_t get_iat(const uint8_t *challenge, size_t challenge_size,
                              uint8_t *token_buf, size_t *token_size)
 {
@@ -76,6 +78,7 @@ proof_of_execution(uintptr_t faddr,
                    const uint8_t *input,  const uint32_t input_len,
                    uint8_t       *output, uint32_t       *output_len,
                    uint8_t *challenge_buf, size_t challenge_size,
+                   const pox_session_ctx_t *sess,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size)
 {
@@ -97,6 +100,7 @@ proof_of_execution(uintptr_t faddr,
     return pox_create_token(iat_token_buf, iat_token_size,
                             faddr, input, input_len,
                             output, output_len,
+                            challenge_buf, challenge_size, sess,
                             (uint8_t *)token_buf, token_size);
 }
 
@@ -104,6 +108,9 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
                                uintptr_t faddr,
                                const uint8_t *input,  uint32_t input_len,
                                uint8_t       *output, uint32_t *output_len,
+                               const uint8_t *challenge_buf,
+                               size_t challenge_size,
+                               const pox_session_ctx_t *sess,
                                uint8_t *report_buf, size_t *report_size)
 {
     static uint8_t cbor_scratch[POX_CBOR_SCRATCH_SIZE];
@@ -116,6 +123,20 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
         LOG_INFFMT("[PoX] ERROR: decode_iat_to_claims failed (%d)\n",
                    (int)status);
         return status;
+    }
+
+    /*
+     * The verifier nonce IS the IAT challenge: the attestation service
+     * must have embedded exactly the Phase-1-authenticated bytes. A
+     * mismatch means substitution or corruption between the phases,
+     * and the token must not be issued.
+     */
+    if (challenge_buf == NULL ||
+        claims.nonce_len != challenge_size ||
+        memcmp(claims.nonce, challenge_buf, challenge_size) != 0) {
+        LOG_INFFMT("[PoX] ERROR: IAT nonce does not match the "
+                   "authenticated challenge\n");
+        return PSA_ERROR_CORRUPTION_DETECTED;
     }
 
     int exec_result = 0;
@@ -135,7 +156,7 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
 
     LOG_INFFMT("[PoX] Execution value: 0x%x (%d)\n", exec_output, exec_output);
 
-    status = encode_pox_claims(&claims, faddr, exec_output,
+    status = encode_pox_claims(&claims, faddr, exec_output, sess,
                                cbor_scratch, sizeof(cbor_scratch), &cbor_len);
     if (status != PSA_SUCCESS) {
         LOG_INFFMT("[PoX] ERROR: encode_pox_claims failed (%d)\n",

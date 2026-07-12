@@ -22,6 +22,7 @@ target_sources(tfm_app_rot_partition_pox
         pox_iat_decoder.c
         pox_encoder.c
         pox_key.c
+        pox_session.c
 )
 
 # The generated sources
@@ -62,7 +63,16 @@ target_compile_definitions(tfm_app_rot_partition_pox
     PRIVATE
         $<$<BOOL:${POX_ALLOW_RUNTIME_KEY_OVERRIDE}>:POX_ALLOW_RUNTIME_KEY_OVERRIDE=1>
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
+        $<$<BOOL:${POX_SESSION_AUTH}>:POX_SESSION_AUTH=1>
+        $<$<BOOL:${POX_BOOT_EPOCH}>:POX_BOOT_EPOCH=1>
 )
+
+if (DEFINED POX_NONCE_HISTORY)
+    target_compile_definitions(tfm_app_rot_partition_pox
+        PRIVATE
+            POX_NONCE_HISTORY=${POX_NONCE_HISTORY}
+    )
+endif()
 
 target_link_libraries(tfm_spm
     PRIVATE

@@ -16,6 +16,20 @@
 
 /* -------------------------------------------------------------------------
  * Public API
+ *
+ * Session authentication: the verifier issues {session_id, challenge,
+ * faddr} and signs the request transcript with its ECDSA P-256 private
+ * key. The NS application is only a relay: it passes session_id and
+ * sess_sig through verbatim and cannot forge or modify them (any change
+ * invalidates the signature checked inside the secure partition).
+ *
+ * sess_sig format: 64-byte RAW r||s (PSA format, NOT ASN.1/DER) over:
+ *   ver(1) | sid_len(1) | session_id | nonce_len(1) | challenge |
+ *   faddr_le32(4)
+ *
+ * session_id/sess_sig may be NULL only when the secure partition is
+ * built with POX_SESSION_AUTH disabled; otherwise the request is
+ * rejected with PSA_ERROR_NOT_PERMITTED.
  * ---------------------------------------------------------------------- */
 
 psa_status_t
@@ -26,6 +40,10 @@ psa_pox_get_token(uintptr_t      faddr,
                   size_t         output_len,
                   const uint8_t *challenge,
                   size_t         challenge_size,
+                  const uint8_t *session_id,
+                  size_t         session_id_len,
+                  const uint8_t *sess_sig,
+                  size_t         sess_sig_len,
                   uint8_t       *token_buf,
                   size_t         token_buf_size,
                   size_t        *token_size)
@@ -45,16 +63,26 @@ psa_pox_get_token(uintptr_t      faddr,
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
+    /* Session credentials: both present, or both absent. Detailed
+     * bounds are validated by the serializer. */
+    if ((session_id == NULL) != (sess_sig == NULL)) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
     /* Build the wire request */
     ns_pox_call_req_t req = {
-        .challenge      = challenge,
-        .challenge_len  = (uint32_t)challenge_size,
-        .function_addr  = (uint32_t)(uintptr_t)faddr,
-        .input          = (uint32_t)(uintptr_t)input,
-        .input_len      = (uint32_t)input_len,
-        .output         = (uint32_t)(uintptr_t)output,
-        .output_len     = (uint32_t)output_len,
-        .add_crc32      = false,
+        .challenge       = challenge,
+        .challenge_len   = (uint32_t)challenge_size,
+        .function_addr   = (uint32_t)(uintptr_t)faddr,
+        .input           = (uint32_t)(uintptr_t)input,
+        .input_len       = (uint32_t)input_len,
+        .output          = (uint32_t)(uintptr_t)output,
+        .output_len      = (uint32_t)output_len,
+        .session_id      = session_id,
+        .session_id_len  = (uint32_t)session_id_len,
+        .sess_sig        = sess_sig,
+        .sess_sig_len    = (uint32_t)sess_sig_len,
+        .add_crc32       = false,
     };
 
     ser_st = serialize_ns_pox_call(&req, wire_buf, sizeof(wire_buf), &wire_len);

@@ -39,4 +39,51 @@ config POX_ALLOW_PLACEHOLDER_KEY
 
       NEVER enable this on a production device.
 
+config POX_SESSION_AUTH
+    bool "PoX session authentication (verifier-signed requests)"
+    default y
+    help
+      Two-phase protocol: the verifier signs each request transcript
+      (ver | session_id | nonce | faddr) with its ECDSA P-256 private
+      key, and the partition verifies it with the embedded verifier
+      public key before any PoX processing.
+
+      Enforcement rules:
+        - Invalid signature -> request rejected, session ended.
+        - Reused nonce      -> request rejected (bounded RAM ring).
+
+      The partition stores no session secret (public key only) and
+      needs no ITS for this feature. When enabled, requests without
+      session credentials are rejected with PSA_ERROR_NOT_PERMITTED,
+      so the NS caller must supply session_id and sess_sig obtained
+      from the verifier.
+
+config POX_NONCE_HISTORY
+    int "Nonce-reuse ring size (entries)"
+    default 16
+    depends on POX_SESSION_AUTH
+    help
+      Number of entries in the bounded RAM ring of SHA-256 nonce
+      digests used to reject nonce reuse within one boot ("prover's
+      book"). Each entry is 32 bytes; 16 entries = 512 bytes of SRAM.
+      Size it to at least the number of requests expected per boot
+      window in which replay must be detected device-side. The
+      verifier's book remains the authoritative replay defence.
+
+config POX_BOOT_EPOCH
+    bool "Persist a boot epoch counter (one ITS write per boot)"
+    default n
+    depends on POX_SESSION_AUTH
+    select TFM_PARTITION_INTERNAL_TRUSTED_STORAGE
+    help
+      Maintains a monotonically increasing boot counter in ITS and
+      includes it in the PoX token claims (POX_LABEL_BOOT_EPOCH).
+      Costs exactly one small ITS write per boot - O(boots), never
+      O(requests) - and closes the cross-reboot window of the RAM
+      nonce ring: a verifier can reject any token whose epoch does
+      not match the device's current boot.
+
+      If enabled, add the ITS service to the dependencies list in
+      tfm_proof_of_execution.yaml.
+
 endif

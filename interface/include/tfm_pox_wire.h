@@ -9,7 +9,7 @@
  *
  * Wire (little-endian):
  *   // Fixed header (16 bytes)
- *   u8   ver = 1
+ *   u8   ver = 2
  *   u8   flags;             // bit0: HAS_CRC32
  *   u16  hdr_len = 16
  *   u16  tlv_count
@@ -30,6 +30,14 @@
  *   FUNC_ADDR (len == 4, LE; selector/ID, NOT an executable pointer)
  *   INPUT_ADDR  (len == 4)   iff input_len_dup  != 0
  *   OUTPUT_ADDR (len == 4)   iff output_len_dup != 0
+ *
+ * Session authentication TLVs (both present, or neither; the secure
+ * side rejects session-less requests when POX_SESSION_AUTH is enabled):
+ *   SESSION_ID (len in [8..32])    opaque, verifier-assigned
+ *   SESS_SIG   (len == 64)         ECDSA P-256 raw r||s over the
+ *                                  request transcript:
+ *                                  ver | sid_len | session_id |
+ *                                  nonce_len | nonce | faddr_le32
  */
 
 #ifndef TFM_POX_WIRE_H
@@ -60,11 +68,17 @@ typedef enum {
     POX_TLV_CHALLENGE   = 0x0001,
     POX_TLV_FUNC_ADDR   = 0x0002,
     POX_TLV_INPUT_ADDR  = 0x0003,
-    POX_TLV_OUTPUT_ADDR = 0x0004
+    POX_TLV_OUTPUT_ADDR = 0x0004,
+    POX_TLV_SESSION_ID  = 0x0005,
+    POX_TLV_SESS_SIG    = 0x0006
 } pox_tlv_type_t;
 
 #define POX_CHALLENGE_LEN_MIN        (32u)
 #define POX_CHALLENGE_LEN_MAX        (64u)
+
+#define POX_SESSION_ID_MIN           (8u)
+#define POX_SESSION_ID_MAX           (32u)
+#define POX_SESS_SIG_LEN             (64u)
 
 /* --------------------------- Status codes ------------------------------- */
 
@@ -93,6 +107,14 @@ typedef struct {
     uint32_t       output;        /* NS address; may be 0 if output_len == 0 */
     uint32_t       output_len;    /* bytes (capacity) */
 
+    /* Session authentication (verifier-supplied; the NS app is only a
+     * relay and cannot forge these). Both NULL/0, or both present. */
+    const uint8_t *session_id;    /* opaque, 8..32 bytes; NULL if none */
+    uint32_t       session_id_len;
+    const uint8_t *sess_sig;      /* ECDSA P-256 raw r||s, 64 bytes;
+                                     NULL if none */
+    uint32_t       sess_sig_len;  /* must be POX_SESS_SIG_LEN if present */
+
     bool           add_crc32;     /* append CRC-32 if true */
 } ns_pox_call_req_t;
 
@@ -105,8 +127,9 @@ ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
 ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed);
 
 /* ---------------------- Secure side: deserializer ----------------------- */
-/* The Secure view points into the caller's buffer for CHALLENGE only.
- * Addresses are surfaced as uintptr_t after LE32 decode.
+/* The Secure view points into the caller's buffer for CHALLENGE,
+ * SESSION_ID and SESS_SIG. Addresses are surfaced as uintptr_t after
+ * LE32 decode.
  */
 
 typedef struct {
@@ -120,6 +143,13 @@ typedef struct {
 
     uintptr_t      output;              /* NS address (0 if output_len == 0) */
     uint32_t       output_len;          /* from header (output_len_dup) */
+
+    /* Session authentication views (point into caller's buffer;
+     * NULL/0 when the session TLVs are absent) */
+    const uint8_t *session_id;
+    uint32_t       session_id_len;
+    const uint8_t *sess_sig;
+    uint32_t       sess_sig_len;
 
     /* Header meta */
     uint8_t        version;

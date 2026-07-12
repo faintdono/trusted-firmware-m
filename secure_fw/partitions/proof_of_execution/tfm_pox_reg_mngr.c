@@ -3,7 +3,9 @@
  *
  * IPC request manager for the Proof-of-Execution (PoX) secure partition.
  * Deserializes the wire-format request from the NS caller, validates it,
- * then invokes proof_of_execution() and writes the resulting token back.
+ * authenticates the session (Phase 1: verifier signature + nonce-reuse
+ * checks), then invokes proof_of_execution() and writes the resulting
+ * token back.
  */
 
 #include "psa/error.h"
@@ -13,6 +15,7 @@
 #include "psa/service.h"
 #include "psa_manifest/tfm_proof_of_execution.h"
 #include "pox.h"
+#include "pox_session.h"
 #include "tfm_pox_wire.h"
 #include "tfm_sp_log.h"
 
@@ -36,6 +39,11 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
     token_buff_size = (msg->out_size[0] < sizeof(token_buff))
                       ? msg->out_size[0]
                       : sizeof(token_buff);
+
+    /* NS-controlled length: never read more than the local buffer. */
+    if (inbuf_size > sizeof(inbuf)) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
 
     /* Read the serialised request from the NS caller */
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
@@ -65,6 +73,35 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
+    /* ---------------- Phase 1: session authentication ---------------- */
+#if POX_SESSION_AUTH
+    if (view.session_id == NULL || view.sess_sig == NULL) {
+        LOG_INFFMT("[PoX] Missing session credentials: rejecting\n");
+        return PSA_ERROR_NOT_PERMITTED;
+    }
+
+    /* Rule 1: invalid signature -> reject, end session.
+     * Rule 2: reused nonce      -> reject.
+     * The nonce is recorded only after the signature verifies. */
+    status = pox_session_authenticate(&view);
+    if (status != PSA_SUCCESS) {
+        LOG_INFFMT("[PoX] Session authentication failed (0x%x)\n",
+                   (unsigned int)status);
+        return status;
+    }
+#endif
+
+    /* Session context for the token claims. caller_id comes from the
+     * SPM and cannot be forged by the NS caller. */
+    pox_session_ctx_t sess = {
+        .session_id     = view.session_id,
+        .session_id_len = view.session_id_len,
+        .caller_id      = msg->client_id,
+#if POX_BOOT_EPOCH
+        .boot_epoch     = pox_session_get_epoch(),
+#endif
+    };
+
     uint32_t output_len = view.output_len;
 
     status = proof_of_execution(
@@ -75,6 +112,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
                  &output_len,
                  (uint8_t *)(uintptr_t)view.challenge,
                  view.challenge_len,
+                 &sess,
                  token_buff,
                  token_buff_size,
                  &token_size);
@@ -138,6 +176,15 @@ psa_status_t pox_init(void)
         LOG_ERRFMT("[PoX] FATAL: cannot register signing key (%d)\n",
                    (int)status);
         psa_panic();
+    }
+
+    /* Session auth setup. On failure (e.g. placeholder verifier key in
+     * a non-debug build) the partition keeps running but fails closed:
+     * pox_session_authenticate() rejects every request. */
+    status = pox_session_init();
+    if (status != PSA_SUCCESS) {
+        LOG_ERRFMT("[PoX] WARNING: session auth init failed (%d); "
+                   "all requests will be rejected\n", (int)status);
     }
 
     while (1) {

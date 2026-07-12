@@ -4,6 +4,7 @@
 #include "psa/error.h"
 #include "psa/client.h"
 #include "psa/crypto.h"
+#include "pox_session.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -80,7 +81,11 @@ psa_status_t pox_set_signing_key(const uint8_t *priv_key, size_t priv_key_len);
  * @param output          Output buffer for the NS function (may be NULL)
  * @param output_len      In: capacity of output; out: bytes written by NS fn
  * @param challenge_buf   Challenge bytes for the IAT token request
+ *                        (the Phase-1-authenticated verifier nonce)
  * @param challenge_size  Length of challenge (32, 48 or 64 bytes)
+ * @param sess            Validated session context (session_id,
+ *                        caller_id[, boot_epoch]). May be NULL only
+ *                        when session authentication is disabled.
  * @param token_buf       Output buffer for the signed PoX token
  * @param token_buf_size  Size of token_buf
  * @param token_size      Actual size of the signed token written
@@ -90,6 +95,7 @@ proof_of_execution(uintptr_t faddr,
                    const uint8_t *input,  const uint32_t input_len,
                    uint8_t       *output, uint32_t       *output_len,
                    uint8_t *challenge_buf, size_t challenge_size,
+                   const pox_session_ctx_t *sess,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size);
 
@@ -106,14 +112,23 @@ proof_of_execution(uintptr_t faddr,
  * @param input_len      Length of input (0 if none)
  * @param output         Output buffer for NS function (may be NULL)
  * @param output_len     In: capacity; out: bytes written
+ * @param challenge_buf  Phase-1-authenticated challenge; the decoded
+ *                       IAT nonce must match it byte-for-byte
+ * @param challenge_size Length of challenge_buf
+ * @param sess           Validated session context for the extra claims
  * @param report_buf     Output buffer for the signed PoX report
  * @param report_size    In: capacity of report_buf; out: bytes written
+ *
+ * @retval PSA_ERROR_CORRUPTION_DETECTED  The IAT-embedded nonce does
+ *         not match the Phase-1-authenticated challenge.
  */
 psa_status_t
 pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
                  uintptr_t faddr,
                  const uint8_t *input,  uint32_t  input_len,
                  uint8_t       *output, uint32_t *output_len,
+                 const uint8_t *challenge_buf, size_t challenge_size,
+                 const pox_session_ctx_t *sess,
                  uint8_t *report_buf, size_t *report_size);
 
 #endif /* POX_H */

@@ -27,4 +27,15 @@ config PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE
     hex  "The maximum possible size of a token"
     default 0x250
 
+config POX_SESSION_AUTH_ATT
+    bool "PoX session authentication on the attestation-partition path"
+    default n
+    help
+      Enforce verifier-signed session credentials (session_id +
+      ECDSA P-256 transcript signature) for TFM_ATTEST_GET_POX
+      requests, mirroring POX_SESSION_AUTH in the standalone PoX
+      partition but independently switchable. The attestation
+      partition keeps its own verifier key handle and nonce ring.
+      IAT services are unaffected either way.
+
 endif

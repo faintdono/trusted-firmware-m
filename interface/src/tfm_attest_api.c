@@ -9,7 +9,7 @@
 #include "psa/client.h"
 #include "psa_manifest/sid.h"
 #include "tfm_attest_defs.h"
-#include "tfm_pox_wire.h"g
+#include "tfm_pox_wire.h"
 
 psa_status_t
 psa_initial_attest_get_token(const uint8_t *auth_challenge,
@@ -79,6 +79,10 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
                                  size_t ns_output_sz,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
+                                 const uint8_t *session_id,
+                                 size_t         session_id_len,
+                                 const uint8_t *sess_sig,
+                                 size_t         sess_sig_len,
                                  uint8_t       *token_buf,
                                  size_t         token_buf_size,
                                  size_t        *token_size)
@@ -86,8 +90,12 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
     psa_status_t status;
     uint8_t inbuf[256]; /* size as needed; for max input size, scale accordingly */
     size_t  inlen = 0;
-    // uint8_t ns_output[64] = {0};
-    // size_t ns_output_sz = sizeof(ns_output);
+
+    /* Session credentials: both present, or both absent. Detailed
+     * bounds are validated by the serializer. */
+    if ((session_id == NULL) != (sess_sig == NULL)) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
 
     ns_pox_call_req_t r = {
         .challenge = auth_challenge,
@@ -96,7 +104,11 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
         .input = (uintptr_t)input_bytes,         /* may be NULL if input_len == 0 */
         .input_len = input_len,
         .output = (uintptr_t)ns_output,        /* may be NULL if output_len == 0 */
-        .output_len = ns_output_sz
+        .output_len = ns_output_sz,
+        .session_id = session_id,
+        .session_id_len = session_id_len,
+        .sess_sig = sess_sig,
+        .sess_sig_len = sess_sig_len
     };
 
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {
@@ -119,5 +131,5 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
         *token_size = out_vec[0].len;
     }
 
-    return 0;
+    return status;
 }

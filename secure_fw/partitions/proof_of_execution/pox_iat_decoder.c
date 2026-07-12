@@ -16,7 +16,7 @@
 
 #include "pox_iat_decoder.h"
 #include "tfm_attest_iat_defs.h"
-#include "tfm_sp_log.h"
+#include "pox_log.h"
 
 #include "qcbor/qcbor_decode.h"
 #include "qcbor/qcbor_spiffy_decode.h"
@@ -141,7 +141,7 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
 
     QCBORDecode_EnterArray(&outer, NULL);
     if (QCBORDecode_GetError(&outer) != QCBOR_SUCCESS) {
-        LOG_INFFMT("[PoX] decode_iat: not a CBOR array\n");
+        POX_LOG_INF("[PoX] decode_iat: not a CBOR array\n");
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -155,7 +155,7 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
     QCBORDecode_GetByteString(&outer, &payload);
     if (QCBORDecode_GetError(&outer) != QCBOR_SUCCESS ||
         payload.ptr == NULL || payload.len == 0) {
-        LOG_INFFMT("[PoX] decode_iat: payload bstr missing\n");
+        POX_LOG_INF("[PoX] decode_iat: payload bstr missing\n");
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -357,7 +357,7 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
 
     QCBORError qerr = QCBORDecode_Finish(&dc);
     if (qerr != QCBOR_SUCCESS && qerr != QCBOR_ERR_EXTRA_BYTES) {
-        LOG_INFFMT("[PoX] decode_iat: finish error %d\n", (int)qerr);
+        POX_LOG_INF("[PoX] decode_iat: finish error %d\n", (int)qerr);
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 

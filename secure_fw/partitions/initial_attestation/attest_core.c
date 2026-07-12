@@ -133,7 +133,7 @@ attest_add_all_sw_components(struct attest_token_encode_ctx *token_ctx)
                                         (int64_t)NO_SW_COMPONENT_FIXED_VALUE);
 #else
         /* Mandatory to have SW components claim in the token */
-        LOG_ERRFMT("[ERR][Attest] Boot record is not available\r\n");
+        POX_LOG_ERR("[ERR][Attest] Boot record is not available\r\n");
         return PSA_ATTEST_ERR_CLAIM_UNAVAILABLE;
 #endif
     }
@@ -258,14 +258,14 @@ attest_add_profile_definition(struct attest_token_encode_ctx *token_ctx)
 
     /* Check for mismatches between the value returned by HAL and Build options */
     if (size == 0) {
-        LOG_INFFMT("[Attest] The platform did not return a profile_definition\r\n");
+        POX_LOG_INF("[Attest] The platform did not return a profile_definition\r\n");
         profile.ptr = profile_definition;
         profile.len = sizeof(profile_definition) - 1;
     } else if (size != (sizeof(profile_definition) - 1) || strncmp(profile_definition, (const char *)buf, size)) {
-        LOG_ERRFMT("[Attest] Using a mismatched profile_definition received from the HAL\r\n");
+        POX_LOG_ERR("[Attest] Using a mismatched profile_definition received from the HAL\r\n");
     }
 
-    LOG_INFFMT("[Attest] Encoding profile_definition (size: %d): %s\r\n", profile.len, profile.ptr);
+    POX_LOG_INF("[Attest] Encoding profile_definition (size: %d): %s\r\n", profile.len, profile.ptr);
     attest_token_encode_add_tstr(token_ctx,
                                  IAT_PROFILE_DEFINITION,
                                  &profile);
@@ -524,7 +524,7 @@ attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
 
     /* copy the execution byte so the CBOR encoder sees the value now */
     /* print execution value (hex and decimal) */
-    LOG_INFFMT("[Secure] INFO: Execution value: 0x%x (%u)\n",
+    POX_LOG_INF("[Secure] INFO: Execution value: 0x%x (%u)\n",
                (unsigned int)*execution_value, (unsigned int)*execution_value);
     buf[0] = *execution_value;
     
@@ -789,6 +789,7 @@ attest_pox_create_token(uintptr_t faddr,
                  uint8_t *output,
                  uint32_t *output_len,
                  struct q_useful_buf_c *challenge,
+                 const attest_session_ctx_t *sess,
                  struct q_useful_buf *token,
                  struct q_useful_buf_c *completed_token)
 {
@@ -834,6 +835,32 @@ attest_pox_create_token(uintptr_t faddr,
         goto error;
     }
 
+    /* Session-authentication claims, mirroring the standalone PoX
+     * partition's encoder (private-use labels).
+     * MUST stay after attest_token_encode_start(): the encode context
+     * is uninitialized before it, and adding claims to it then is a
+     * write through wild pointers (secure BusFault). */
+    if (sess != NULL)
+    {
+        if (sess->session_id != NULL && sess->session_id_len > 0)
+        {
+            struct q_useful_buf_c sid;
+            sid.ptr = sess->session_id;
+            sid.len = sess->session_id_len;
+            attest_token_encode_add_bstr(&attest_token_ctx,
+                                         POX_LABEL_SESSION_ID, &sid);
+        }
+        /* SPM-supplied, cannot be forged by the NS caller */
+        attest_token_encode_add_integer(&attest_token_ctx,
+                                        POX_LABEL_CALLER_ID,
+                                        (int64_t)sess->caller_id);
+#if POX_BOOT_EPOCH
+        attest_token_encode_add_integer(&attest_token_ctx,
+                                        POX_LABEL_BOOT_EPOCH,
+                                        (int64_t)sess->boot_epoch);
+#endif
+    }
+
     for (i = 0; i < ARRAY_LENGTH(claim_query_funcs); ++i)
     {
         attest_err = claim_query_funcs[i](&attest_token_ctx);
@@ -855,6 +882,7 @@ psa_status_t
 attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t *output_len,
                    const void *challenge_buf, size_t challenge_size,
+                   const attest_session_ctx_t *sess,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size)
 {
@@ -879,7 +907,7 @@ attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t 
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
-    attest_err = attest_pox_create_token(faddr, input, input_len, output, output_len, &challenge, &token, &completed_token);
+    attest_err = attest_pox_create_token(faddr, input, input_len, output, output_len, &challenge, sess, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;

@@ -17,7 +17,7 @@
 #include "pox.h"
 #include "pox_session.h"
 #include "tfm_pox_wire.h"
-#include "tfm_sp_log.h"
+#include "pox_log.h"
 
 /* Shared output buffer for the signed PoX token */
 static uint8_t token_buff[ATT_MAX_TOKEN_SIZE];
@@ -76,7 +76,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
     /* ---------------- Phase 1: session authentication ---------------- */
 #if POX_SESSION_AUTH
     if (view.session_id == NULL || view.sess_sig == NULL) {
-        LOG_INFFMT("[PoX] Missing session credentials: rejecting\n");
+        POX_LOG_INF("[PoX] Missing session credentials: rejecting\n");
         return PSA_ERROR_NOT_PERMITTED;
     }
 
@@ -85,7 +85,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
      * The nonce is recorded only after the signature verifies. */
     status = pox_session_authenticate(&view);
     if (status != PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] Session authentication failed (0x%x)\n",
+        POX_LOG_INF("[PoX] Session authentication failed (0x%x)\n",
                    (unsigned int)status);
         return status;
     }
@@ -118,11 +118,11 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
                  &token_size);
 
     if (status == PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] Success. Writing %u bytes to NS caller.\n",
+        POX_LOG_INF("[PoX] Success. Writing %u bytes to NS caller.\n",
                    (unsigned int)token_size);
         psa_write(msg->handle, 0, token_buff, token_size);
     } else {
-        LOG_INFFMT("[PoX] ERROR: proof_of_execution failed (0x%x)\n",
+        POX_LOG_INF("[PoX] ERROR: proof_of_execution failed (0x%x)\n",
                    (unsigned int)status);
     }
 
@@ -158,7 +158,7 @@ static psa_status_t pox_ipc_handler(psa_signal_t signal)
         break;
 
     default:
-        LOG_ERRFMT("[PoX] ERROR: unexpected message type %d\n", msg.type);
+        POX_LOG_ERR("[PoX] ERROR: unexpected message type %d\n", msg.type);
         psa_reply(msg.handle, PSA_ERROR_PROGRAMMER_ERROR);
         break;
     }
@@ -173,7 +173,7 @@ psa_status_t pox_init(void)
 
     status = pox_register_signing_key();
     if (status != PSA_SUCCESS) {
-        LOG_ERRFMT("[PoX] FATAL: cannot register signing key (%d)\n",
+        POX_LOG_ERR("[PoX] FATAL: cannot register signing key (%d)\n",
                    (int)status);
         psa_panic();
     }
@@ -183,7 +183,7 @@ psa_status_t pox_init(void)
      * pox_session_authenticate() rejects every request. */
     status = pox_session_init();
     if (status != PSA_SUCCESS) {
-        LOG_ERRFMT("[PoX] WARNING: session auth init failed (%d); "
+        POX_LOG_ERR("[PoX] WARNING: session auth init failed (%d); "
                    "all requests will be rejected\n", (int)status);
     }
 

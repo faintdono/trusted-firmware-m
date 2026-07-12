@@ -1,4 +1,4 @@
-/*
+gi/*
  * Copyright (c) 2018-2022, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -211,6 +211,14 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
  *                                PSA_INITIAL_ATTEST_CHALLENGE_SIZE_48 or
  *                                PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64.
  * \param[in]     challenge_size  Size of challenge object in bytes.
+ * \param[in]     session_id      Verifier-assigned opaque session id
+ *                                (8..32 bytes). NULL only when the secure
+ *                                side is built without POX_SESSION_AUTH.
+ * \param[in]     session_id_len  Length of session_id in bytes.
+ * \param[in]     sess_sig        Verifier ECDSA P-256 signature over the
+ *                                request transcript, 64 bytes raw r||s
+ *                                (PSA format, NOT ASN.1/DER); or NULL.
+ * \param[in]     sess_sig_len    Length of sess_sig (must be 64 if present).
  * \param[out]    token_buf       Pointer to the buffer where attestation token
  *                                will be stored.
  * \param[in]     token_buf_size  Size of allocated buffer for token, in bytes.
@@ -227,6 +235,10 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
                                  size_t ns_output_sz,
                                  const uint8_t *auth_challenge,
                                  size_t         challenge_size,
+                                 const uint8_t *session_id,
+                                 size_t         session_id_len,
+                                 const uint8_t *sess_sig,
+                                 size_t         sess_sig_len,
                                  uint8_t       *token_buf,
                                  size_t         token_buf_size,
                                  size_t        *token_size);

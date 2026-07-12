@@ -70,6 +70,15 @@ config POX_NONCE_HISTORY
       window in which replay must be detected device-side. The
       verifier's book remains the authoritative replay defence.
 
+config POX_LOG_ENABLE
+    bool "PoX debug logging"
+    default y
+    help
+      Compile in the [PoX]/[Attest][PoX] informational and error log
+      messages (UART). Disable for benchmarking: with this off every
+      log call compiles out entirely, so the instrumented build has
+      no logging overhead versus the unmodified baseline.
+
 config POX_BOOT_EPOCH
     bool "Persist a boot epoch counter (one ITS write per boot)"
     default n

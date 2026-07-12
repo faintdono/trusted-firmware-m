@@ -19,7 +19,7 @@
 #include "psa_manifest/tfm_initial_attestation.h"
 #include "tfm_attest_defs.h"
 #include "tfm_pox_wire.h"
-#include "tfm_sp_log.h"
+#include "attest_session.h"
 
 #define ECC_P256_PUBLIC_KEY_SIZE PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256)
 
@@ -145,12 +145,17 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
 
     /* store the client ID here for later use in service */
     g_attest_caller_id = msg->client_id;
-    
+
+    /* NS-controlled length: never read more than the local buffer. */
+    if (inbuf_size > sizeof(inbuf)) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size) {
         return PSA_ERROR_GENERIC_ERROR;
     }
-    
+
     sec_pox_view_t view = {0};
     ser_status_t st = deserialize_ns_pox_call(inbuf, inbuf_size, &view);
     if (st != SER_OK) {
@@ -171,15 +176,44 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    status = attest_proof_of_execution(view.function_addr_le32, 
-                               view.input, 
-                               view.input_len, 
+    /* ---------------- Phase 1: session authentication ----------------
+     * Same policy as the standalone PoX partition, own instance and
+     * own build flag (POX_SESSION_AUTH_ATT):
+     * rule 1 invalid signature -> reject, end session;
+     * rule 2 reused nonce      -> reject. */
+#if POX_SESSION_AUTH_ATT
+    if (view.session_id == NULL || view.sess_sig == NULL) {
+        POX_LOG_INF("[Attest][PoX] Missing session credentials: rejecting\n");
+        return PSA_ERROR_NOT_PERMITTED;
+    }
+
+    status = attest_session_authenticate(&view);
+    if (status != PSA_SUCCESS) {
+        POX_LOG_INF("[Attest][PoX] Session authentication failed (0x%x)\n",
+                   (unsigned int)status);
+        return status;
+    }
+#endif
+
+    attest_session_ctx_t sess = {
+        .session_id     = view.session_id,
+        .session_id_len = view.session_id_len,
+        .caller_id      = msg->client_id,
+#if POX_BOOT_EPOCH
+        .boot_epoch     = attest_session_get_epoch(),
+#endif
+    };
+
+    status = attest_proof_of_execution(view.function_addr_le32,
+                               view.input,
+                               view.input_len,
                                view.output,
                                view.output_len,
-                               view.challenge, 
-                               view.challenge_len, 
-                               token_buff, 
-                               token_buff_size, 
+                               view.challenge,
+                               view.challenge_len,
+                               &sess,
+                               token_buff,
+                               token_buff_size,
                                &token_size);
 
     if (status == PSA_SUCCESS) {
@@ -205,5 +239,15 @@ psa_status_t tfm_attestation_service_sfn(const psa_msg_t *msg)
 
 psa_status_t attest_partition_init(void)
 {
-    return attest_init();
+    psa_status_t status = attest_init();
+
+    /* Session auth for the PoX path. On failure the partition keeps
+     * running but the PoX path fails closed: every TFM_ATTEST_GET_POX
+     * request is rejected. IAT services are unaffected. */
+    if (attest_session_init() != PSA_SUCCESS) {
+        POX_LOG_INF("[Attest][PoX] WARNING: session auth init failed; "
+                   "PoX requests will be rejected\n");
+    }
+
+    return status;
 }

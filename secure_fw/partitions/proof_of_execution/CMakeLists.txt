@@ -65,6 +65,7 @@ target_compile_definitions(tfm_app_rot_partition_pox
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
         $<$<BOOL:${POX_SESSION_AUTH}>:POX_SESSION_AUTH=1>
         $<$<BOOL:${POX_BOOT_EPOCH}>:POX_BOOT_EPOCH=1>
+        $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
 )
 
 if (DEFINED POX_NONCE_HISTORY)

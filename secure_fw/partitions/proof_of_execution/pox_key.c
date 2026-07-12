@@ -35,7 +35,7 @@
 
 #include "pox.h"
 #include "psa/crypto.h"
-#include "tfm_sp_log.h"
+#include "pox_log.h"
 #include <string.h>
 #include <stdint.h>
 
@@ -122,13 +122,13 @@ static psa_status_t import_pox_key(const uint8_t *priv, size_t priv_len)
     psa_reset_key_attributes(&attr);
 
     if (status != PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] ERROR: psa_import_key failed (%d)\n",
+        POX_LOG_INF("[PoX] ERROR: psa_import_key failed (%d)\n",
                    (int)status);
         return status;
     }
 
     pox_volatile_key_handle = imported_id;
-    LOG_INFFMT("[PoX] Signing key imported, volatile handle=0x%x\n",
+    POX_LOG_INF("[PoX] Signing key imported, volatile handle=0x%x\n",
                (unsigned int)imported_id);
     return PSA_SUCCESS;
 }
@@ -144,7 +144,7 @@ psa_status_t pox_register_signing_key(void)
      */
 #if !defined(POX_ALLOW_PLACEHOLDER_KEY)
     if (memcmp(POX_HARDCODED_PRIV_KEY, pox_placeholder_ref, 32) == 0) {
-        LOG_ERRFMT("[PoX] FATAL: placeholder signing key detected in "
+        POX_LOG_ERR("[PoX] FATAL: placeholder signing key detected in "
                    "production build. Replace POX_HARDCODED_PRIV_KEY "
                    "in pox_key.c.\n");
         return PSA_ERROR_NOT_PERMITTED;
@@ -153,7 +153,7 @@ psa_status_t pox_register_signing_key(void)
 
     /* Destroy any previously imported volatile key from a prior call. */
     if (pox_volatile_key_handle != 0) {
-        LOG_INFFMT("[PoX] Destroying previous volatile key handle=0x%x\n",
+        POX_LOG_INF("[PoX] Destroying previous volatile key handle=0x%x\n",
                    (unsigned int)pox_volatile_key_handle);
         (void)psa_destroy_key(pox_volatile_key_handle);
         pox_volatile_key_handle = 0;
@@ -178,7 +178,7 @@ psa_status_t pox_set_signing_key(const uint8_t *priv_key, size_t priv_key_len)
         psa_status_t status = psa_destroy_key(pox_volatile_key_handle);
         if (status != PSA_SUCCESS && status != PSA_ERROR_INVALID_HANDLE &&
             status != PSA_ERROR_DOES_NOT_EXIST) {
-            LOG_INFFMT("[PoX] ERROR: psa_destroy_key failed (%d)\n",
+            POX_LOG_INF("[PoX] ERROR: psa_destroy_key failed (%d)\n",
                        (int)status);
             return status;
         }

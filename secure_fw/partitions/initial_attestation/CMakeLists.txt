@@ -27,6 +27,7 @@ target_sources(tfm_psa_rot_partition_attestation PRIVATE
     attest_token_encode.c
     attest_execute.c
     attest_deserializer.c
+    attest_session.c
 )
 
 # The generated sources
@@ -67,7 +68,22 @@ target_compile_definitions(tfm_psa_rot_partition_attestation
         $<$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>:SYMMETRIC_INITIAL_ATTESTATION>
         $<$<NOT:$<BOOL:${PLATFORM_DEFAULT_ATTEST_HAL}>>:CLAIM_VALUE_CHECK>
         $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:ATTEST_KEY_BITS=${ATTEST_KEY_BITS}>
+        # PoX session auth for the TFM_ATTEST_GET_POX path. Own instance
+        # and own flag (POX_SESSION_AUTH_ATT), independent from the
+        # standalone PoX partition's POX_SESSION_AUTH, so the two paths
+        # can be built authenticated/unauthenticated separately.
+        $<$<BOOL:${POX_SESSION_AUTH_ATT}>:POX_SESSION_AUTH_ATT=1>
+        $<$<BOOL:${POX_BOOT_EPOCH}>:POX_BOOT_EPOCH=1>
+        $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
+        $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
 )
+
+if (DEFINED POX_NONCE_HISTORY)
+    target_compile_definitions(tfm_psa_rot_partition_attestation
+        PRIVATE
+            POX_NONCE_HISTORY=${POX_NONCE_HISTORY}
+    )
+endif()
 
 ########################### Attest defs ########################################
 

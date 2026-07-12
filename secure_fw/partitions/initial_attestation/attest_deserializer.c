@@ -59,6 +59,7 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
 
     size_t off = hdr_len;
     bool saw_ch=false, saw_fn=false, saw_in=false, saw_out=false;
+    bool saw_sid=false, saw_sig=false;
 
     for (uint16_t i = 0; i < tlv_cnt; ++i) {
         if (off > tlvs_end || (tlvs_end - off) < 8) return SER_EMALFORMED;
@@ -103,6 +104,22 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
             saw_out = true;
             break;
 
+        case POX_TLV_SESSION_ID:
+            if (saw_sid) return SER_EMALFORMED;
+            if (l < POX_SESSION_ID_MIN || l > POX_SESSION_ID_MAX) return SER_EMALFORMED;
+            out->session_id = val;
+            out->session_id_len = l;
+            saw_sid = true;
+            break;
+
+        case POX_TLV_SESS_SIG:
+            if (saw_sig) return SER_EMALFORMED;
+            if (l != POX_SESS_SIG_LEN) return SER_EMALFORMED;
+            out->sess_sig = val;
+            out->sess_sig_len = l;
+            saw_sig = true;
+            break;
+
         default:
             /* skip unknown types */
             break;
@@ -121,6 +138,8 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
     if (out->input_len  != 0u && !saw_in)  return SER_EMALFORMED;
     if (out->output_len != 0u && !saw_out) return SER_EMALFORMED;
     if (saw_out && out->output_len == 0u)  return SER_EMALFORMED;
+    /* session credentials: both present or neither */
+    if (saw_sid != saw_sig) return SER_EMALFORMED;
 
     if (off != tlvs_end) return SER_EMALFORMED;
 

@@ -1,12 +1,12 @@
 #include "attest_execute.h"
-#include "tfm_sp_log.h"
+#include "attest_session.h"
 #include <stdint.h>
 
 int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
                uint8_t *output, uint32_t *output_len)
 {
     if (!faddr) {
-        LOG_ERRFMT("[Secure] ERROR: Null function pointer.\n");
+        POX_LOG_ERR("[Secure] ERROR: Null function pointer.\n");
         return -1;
     }
 
@@ -19,7 +19,7 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
 int ns_execute_void(uintptr_t faddr)
 {
     if (!faddr) {
-        LOG_ERRFMT("[Secure] ERROR: Null function pointer.\n");
+        POX_LOG_ERR("[Secure] ERROR: Null function pointer.\n");
         return -1;
     }
 

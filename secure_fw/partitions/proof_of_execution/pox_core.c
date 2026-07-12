@@ -22,14 +22,14 @@
 #include "t_cose/t_cose_sign1_sign.h"
 #include "t_cose/t_cose_key.h"
 #include "t_cose/t_cose_common.h"
-#include "tfm_sp_log.h"
+#include "pox_log.h"
 
 #include <string.h>
 
 static psa_status_t get_iat(const uint8_t *challenge, size_t challenge_size,
                              uint8_t *token_buf, size_t *token_size)
 {
-    LOG_INFFMT("[PoX] Requesting IAT token (challenge_size=%u)...\n",
+    POX_LOG_INF("[PoX] Requesting IAT token (challenge_size=%u)...\n",
                (unsigned int)challenge_size);
 
     psa_status_t status = psa_initial_attest_get_token(
@@ -37,10 +37,10 @@ static psa_status_t get_iat(const uint8_t *challenge, size_t challenge_size,
                                 token_buf, ATT_MAX_TOKEN_SIZE,
                                 token_size);
     if (status != PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] ERROR: psa_initial_attest_get_token failed (%d)\n",
+        POX_LOG_INF("[PoX] ERROR: psa_initial_attest_get_token failed (%d)\n",
                    (int)status);
     } else {
-        LOG_INFFMT("[PoX] IAT token obtained, size=%u\n",
+        POX_LOG_INF("[PoX] IAT token obtained, size=%u\n",
                    (unsigned int)*token_size);
     }
     return status;
@@ -65,7 +65,7 @@ static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
                             (UsefulBuf){ report_buf, report_buf_sz },
                             &signed_out);
     if (err != T_COSE_SUCCESS) {
-        LOG_INFFMT("[PoX] ERROR: t_cose_sign1_sign failed (%d)\n", (int)err);
+        POX_LOG_INF("[PoX] ERROR: t_cose_sign1_sign failed (%d)\n", (int)err);
         return PSA_ERROR_GENERIC_ERROR;
     }
 
@@ -94,7 +94,7 @@ proof_of_execution(uintptr_t faddr,
     if (status != PSA_SUCCESS) {
         return status;
     }
-    LOG_INFFMT("[PoX] IAT token size: %u\n", (unsigned int)iat_token_size);
+    POX_LOG_INF("[PoX] IAT token size: %u\n", (unsigned int)iat_token_size);
 
     *token_size = token_buf_size;
     return pox_create_token(iat_token_buf, iat_token_size,
@@ -120,7 +120,7 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     psa_status_t status = decode_iat_to_claims(iat_token_buf, iat_token_sz,
                                                &claims);
     if (status != PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] ERROR: decode_iat_to_claims failed (%d)\n",
+        POX_LOG_INF("[PoX] ERROR: decode_iat_to_claims failed (%d)\n",
                    (int)status);
         return status;
     }
@@ -134,7 +134,7 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     if (challenge_buf == NULL ||
         claims.nonce_len != challenge_size ||
         memcmp(claims.nonce, challenge_buf, challenge_size) != 0) {
-        LOG_INFFMT("[PoX] ERROR: IAT nonce does not match the "
+        POX_LOG_INF("[PoX] ERROR: IAT nonce does not match the "
                    "authenticated challenge\n");
         return PSA_ERROR_CORRUPTION_DETECTED;
     }
@@ -147,19 +147,19 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
         } else {
             exec_result = ns_execute_void(faddr);
         }
-        LOG_INFFMT("[PoX] ns_execute return code: %d\n", exec_result);
+        POX_LOG_INF("[PoX] ns_execute return code: %d\n", exec_result);
     }
 
     int exec_output = (output != NULL && output_len != NULL && *output_len > 0)
                       ? (int)output[0]
                       : exec_result;
 
-    LOG_INFFMT("[PoX] Execution value: 0x%x (%d)\n", exec_output, exec_output);
+    POX_LOG_INF("[PoX] Execution value: 0x%x (%d)\n", exec_output, exec_output);
 
     status = encode_pox_claims(&claims, faddr, exec_output, sess,
                                cbor_scratch, sizeof(cbor_scratch), &cbor_len);
     if (status != PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] ERROR: encode_pox_claims failed (%d)\n",
+        POX_LOG_INF("[PoX] ERROR: encode_pox_claims failed (%d)\n",
                    (int)status);
         return status;
     }
@@ -167,7 +167,7 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     status = sign_pox_token(cbor_scratch, cbor_len,
                             report_buf, *report_size, report_size);
     if (status != PSA_SUCCESS) {
-        LOG_INFFMT("[PoX] ERROR: sign_pox_token failed (%d)\n", (int)status);
+        POX_LOG_INF("[PoX] ERROR: sign_pox_token failed (%d)\n", (int)status);
     }
 
     return status;

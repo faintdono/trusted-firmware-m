@@ -1,28 +1,24 @@
 /*
- * pox_session.c
+ * attest_session.c
  *
- * Phase-1 session authentication for the PoX secure partition.
+ * Session authentication for the attestation partition's PoX path.
+ * Self-contained twin of the standalone partition's pox_session.c:
+ * same protocol, same verifier public key, but a private key handle
+ * and a private nonce ring. PSA volatile keys are owned by the
+ * importing partition, so the two partitions cannot share one
+ * instance (broken under isolation levels above 1).
  *
- * Signature-only model: the verifier signs the request transcript
+ * Transcript:
  *   ver(1)=0x02 | sid_len(1) | session_id | nonce_len(1) | challenge |
  *   faddr_le32(4)
- * with its ECDSA P-256 private key (64-byte RAW r||s, PSA format).
- * The partition holds only the verifier PUBLIC key: no session secret,
- * no PSK, no ITS dependency (except the optional boot epoch counter).
- *
- * Enforcement rules (in order, before any PoX processing):
- *   1. Invalid signature  -> reject request, end session.
- *   2. Reused nonce       -> reject request.
- * The nonce is recorded in the ring ONLY after the signature verifies,
- * so unauthenticated traffic cannot pollute the prover's book.
+ * SIG: ECDSA-P256-SHA256, 64-byte RAW r||s (PSA format, NOT DER).
  */
 
-#include "pox_session.h"
-#include "pox_log.h"
+#include "attest_session.h"
 #include "cmsis_compiler.h"
 #include <string.h>
 
-#if POX_SESSION_AUTH
+#if POX_SESSION_AUTH_ATT
 
 #if POX_BOOT_EPOCH
 #include "psa/internal_trusted_storage.h"
@@ -36,17 +32,13 @@
  * ECDSA P-256 public key of the verifier, SEC1 uncompressed form:
  * 0x04 || X(32 bytes) || Y(32 bytes).
  *
- * PLACEHOLDER: these are the publicly known RFC 6979 (A.2.5) P-256
- * test-vector coordinates. The matching private key
- * (C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721)
- * is published in the RFC, so anyone holding it could authorize PoX
- * requests on every device shipped with this key. Registration is
- * refused at runtime unless POX_ALLOW_PLACEHOLDER_KEY is enabled
- * (debug builds only), mirroring the pox_key.c placeholder policy.
- * The same RFC key pair is convenient for bring-up: use the published
- * private key on the verifier side to sign test transcripts.
+ * PLACEHOLDER: the publicly known RFC 6979 (A.2.5) P-256 test-vector
+ * key, identical to the placeholder in the standalone partition's
+ * pox_session.c. Registration is refused at runtime unless
+ * POX_ALLOW_PLACEHOLDER_KEY is enabled (debug builds only). Keep both
+ * copies in sync when provisioning the real verifier key.
  */
-#define POX_VERIFIER_PLACEHOLDER_PUBKEY                   \
+#define ATTEST_VERIFIER_PLACEHOLDER_PUBKEY                \
     0x04,                                                 \
     0x60, 0xFE, 0xD4, 0xBA, 0x25, 0x5A, 0x9D, 0x31,       \
     0xC9, 0x61, 0xEB, 0x74, 0xC6, 0x35, 0x6D, 0x68,       \
@@ -58,21 +50,14 @@
     0x77, 0xA3, 0xC2, 0x94, 0xD4, 0x46, 0x22, 0x99
 
 /* ============================ EDIT BELOW ============================ */
-/*
- * Replace with your own verifier public key (65 bytes, 0x04||X||Y).
- * Generate the pair with:
- *   openssl ecparam -name prime256v1 -genkey -noout -out verifier.pem
- *   openssl ec -in verifier.pem -pubout -conv_form uncompressed \
- *     -outform DER | tail -c 65 | xxd -i
- */
-static const uint8_t POX_VERIFIER_PUBKEY_BYTES[65] = {
-    POX_VERIFIER_PLACEHOLDER_PUBKEY
+static const uint8_t ATTEST_VERIFIER_PUBKEY_BYTES[65] = {
+    ATTEST_VERIFIER_PLACEHOLDER_PUBKEY
 };
 /* ============================ EDIT ABOVE ============================ */
 
 #if !defined(POX_ALLOW_PLACEHOLDER_KEY)
-static const uint8_t pox_verifier_placeholder_ref[65] = {
-    POX_VERIFIER_PLACEHOLDER_PUBKEY
+static const uint8_t attest_verifier_placeholder_ref[65] = {
+    ATTEST_VERIFIER_PLACEHOLDER_PUBKEY
 };
 #endif
 
@@ -80,30 +65,23 @@ static const uint8_t pox_verifier_placeholder_ref[65] = {
 /* State                                                                */
 /* ------------------------------------------------------------------ */
 
-/*
- * Volatile handle of the imported verifier public key. Zero means
- * session auth is unusable and pox_session_authenticate() fails closed.
- */
+/* Zero means unusable: attest_session_authenticate() fails closed. */
 static psa_key_id_t verifier_key_handle = 0;
 
-/*
- * Nonce-reuse ring: the "prover's book". Bounded RAM history of
- * SHA-256 digests of accepted challenges within this boot. The
- * verifier keeps the authoritative book; this ring only bounds what a
- * replaying NS relay can achieve device-side.
- */
-#define POX_NONCE_DIGEST_LEN 32u
-static uint8_t nonce_ring[POX_NONCE_HISTORY][POX_NONCE_DIGEST_LEN];
-static size_t  nonce_ring_count = 0;   /* valid entries               */
-static size_t  nonce_ring_next  = 0;   /* next slot to (over)write    */
+/* Nonce-reuse ring ("prover's book"), private to this partition. */
+#define ATTEST_NONCE_DIGEST_LEN 32u
+static uint8_t nonce_ring[POX_NONCE_HISTORY][ATTEST_NONCE_DIGEST_LEN];
+static size_t  nonce_ring_count = 0;
+static size_t  nonce_ring_next  = 0;
 
 #if POX_BOOT_EPOCH
-/* ITS UID for the boot epoch counter ("POXE") */
-#define POX_EPOCH_ITS_UID ((psa_storage_uid_t)0x504F5845u)
+/* ITS UID for the boot epoch counter ("POXA"). ITS is namespaced per
+ * partition, but a distinct UID keeps debugging unambiguous. */
+#define ATTEST_EPOCH_ITS_UID ((psa_storage_uid_t)0x504F5841u)
 
 static uint32_t boot_epoch_val = 0;
 
-uint32_t pox_session_get_epoch(void)
+uint32_t attest_session_get_epoch(void)
 {
     return boot_epoch_val;
 }
@@ -114,11 +92,11 @@ static psa_status_t boot_epoch_init(void)
     size_t       got  = 0;
     psa_status_t status;
 
-    status = psa_its_get(POX_EPOCH_ITS_UID, 0, sizeof(prev), &prev, &got);
+    status = psa_its_get(ATTEST_EPOCH_ITS_UID, 0, sizeof(prev), &prev, &got);
     if (status == PSA_ERROR_DOES_NOT_EXIST) {
         prev = 0;
     } else if (status != PSA_SUCCESS || got != sizeof(prev)) {
-        POX_LOG_ERR("[PoX] ERROR: boot epoch read failed (%d)\n",
+        POX_LOG_ERR("[Attest][PoX] ERROR: boot epoch read failed (%d)\n",
                    (int)status);
         return (status == PSA_SUCCESS) ? PSA_ERROR_STORAGE_FAILURE
                                        : status;
@@ -126,15 +104,16 @@ static psa_status_t boot_epoch_init(void)
 
     boot_epoch_val = prev + 1u;
 
-    status = psa_its_set(POX_EPOCH_ITS_UID, sizeof(boot_epoch_val),
+    status = psa_its_set(ATTEST_EPOCH_ITS_UID, sizeof(boot_epoch_val),
                          &boot_epoch_val, PSA_STORAGE_FLAG_NONE);
     if (status != PSA_SUCCESS) {
-        POX_LOG_ERR("[PoX] ERROR: boot epoch write failed (%d)\n",
+        POX_LOG_ERR("[Attest][PoX] ERROR: boot epoch write failed (%d)\n",
                    (int)status);
         return status;
     }
 
-    POX_LOG_INF("[PoX] Boot epoch: %u\n", (unsigned int)boot_epoch_val);
+    POX_LOG_INF("[Attest][PoX] Boot epoch: %u\n",
+               (unsigned int)boot_epoch_val);
     return PSA_SUCCESS;
 }
 #endif /* POX_BOOT_EPOCH */
@@ -143,24 +122,21 @@ static psa_status_t boot_epoch_init(void)
 /* Init                                                                 */
 /* ------------------------------------------------------------------ */
 
-psa_status_t pox_session_init(void)
+psa_status_t attest_session_init(void)
 {
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
     psa_key_id_t         imported_id = 0;
     psa_status_t         status;
 
-    /*
-     * Placeholder guard, mirroring pox_register_signing_key(): refuse
-     * the known-public dev key unless explicitly allowed. On refusal
-     * the handle stays 0 and every request is rejected (fail closed) -
-     * the partition itself keeps running.
-     */
+    /* Placeholder guard: refuse the known-public dev key unless
+     * explicitly allowed. On refusal the handle stays 0 and every PoX
+     * request is rejected (fail closed); IAT is unaffected. */
 #if !defined(POX_ALLOW_PLACEHOLDER_KEY)
-    if (memcmp(POX_VERIFIER_PUBKEY_BYTES, pox_verifier_placeholder_ref,
-               sizeof(POX_VERIFIER_PUBKEY_BYTES)) == 0) {
-        POX_LOG_ERR("[PoX] FATAL: placeholder verifier public key detected "
-                   "in production build. Replace POX_VERIFIER_PUBKEY_BYTES "
-                   "in pox_session.c.\n");
+    if (memcmp(ATTEST_VERIFIER_PUBKEY_BYTES, attest_verifier_placeholder_ref,
+               sizeof(ATTEST_VERIFIER_PUBKEY_BYTES)) == 0) {
+        POX_LOG_ERR("[Attest][PoX] FATAL: placeholder verifier public key "
+                   "detected in production build. Replace "
+                   "ATTEST_VERIFIER_PUBKEY_BYTES in attest_session.c.\n");
         return PSA_ERROR_NOT_PERMITTED;
     }
 #endif
@@ -170,11 +146,8 @@ psa_status_t pox_session_init(void)
         verifier_key_handle = 0;
     }
 
-    /*
-     * VOLATILE import: the key is a compile-time constant and only
-     * integrity-sensitive (it is a PUBLIC key), so it is re-imported
-     * on every boot and never touches ITS.
-     */
+    /* VOLATILE import: compile-time constant PUBLIC key, re-imported
+     * each boot, never touches ITS. */
     psa_set_key_lifetime(&attr, PSA_KEY_LIFETIME_VOLATILE);
     psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_MESSAGE |
                                    PSA_KEY_USAGE_VERIFY_HASH);
@@ -183,14 +156,14 @@ psa_status_t pox_session_init(void)
         PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1));
     psa_set_key_bits(&attr, 256);
 
-    status = psa_import_key(&attr, POX_VERIFIER_PUBKEY_BYTES,
-                            sizeof(POX_VERIFIER_PUBKEY_BYTES),
+    status = psa_import_key(&attr, ATTEST_VERIFIER_PUBKEY_BYTES,
+                            sizeof(ATTEST_VERIFIER_PUBKEY_BYTES),
                             &imported_id);
     psa_reset_key_attributes(&attr);
 
     if (status != PSA_SUCCESS) {
-        POX_LOG_ERR("[PoX] ERROR: verifier pubkey import failed (%d)\n",
-                   (int)status);
+        POX_LOG_ERR("[Attest][PoX] ERROR: verifier pubkey import failed "
+                   "(%d)\n", (int)status);
         return status;
     }
 
@@ -201,16 +174,14 @@ psa_status_t pox_session_init(void)
 #if POX_BOOT_EPOCH
     status = boot_epoch_init();
     if (status != PSA_SUCCESS) {
-        /* Without a trustworthy epoch the freshness claim would lie:
-         * fail closed. */
         (void)psa_destroy_key(verifier_key_handle);
         verifier_key_handle = 0;
         return status;
     }
 #endif
 
-    POX_LOG_INF("[PoX] Session auth ready (verifier key handle=0x%x, "
-               "nonce ring=%u entries)\n",
+    POX_LOG_INF("[Attest][PoX] Session auth ready (verifier key "
+               "handle=0x%x, nonce ring=%u entries)\n",
                (unsigned int)verifier_key_handle,
                (unsigned int)POX_NONCE_HISTORY);
     return PSA_SUCCESS;
@@ -220,14 +191,14 @@ psa_status_t pox_session_init(void)
 /* Phase-1 enforcement                                                  */
 /* ------------------------------------------------------------------ */
 
-psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
+psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
 {
     /* Transcript: ver | sid_len | sid | nonce_len | nonce | faddr_le32 */
     uint8_t      transcript[1 + 1 + POX_SESSION_ID_MAX +
                             1 + POX_CHALLENGE_LEN_MAX + 4];
     size_t       off = 0;
     uint32_t     faddr;
-    uint8_t      digest[POX_NONCE_DIGEST_LEN];
+    uint8_t      digest[ATTEST_NONCE_DIGEST_LEN];
     size_t       digest_len = 0;
     psa_status_t status;
 
@@ -258,8 +229,7 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
     memcpy(&transcript[off], view->challenge, view->challenge_len);
     off += view->challenge_len;
 
-    /* faddr re-encoded LE32: view->function_addr_le32 is host order
-     * after the deserializer's le32_load. */
+    /* faddr re-encoded LE32 (host order after deserialize). */
     faddr = (uint32_t)view->function_addr_le32;
     transcript[off++] = (uint8_t)(faddr);
     transcript[off++] = (uint8_t)(faddr >> 8);
@@ -272,16 +242,16 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
                                 transcript, off,
                                 view->sess_sig, view->sess_sig_len);
     if (status != PSA_SUCCESS) {
-        POX_LOG_ERR("[PoX] Session signature invalid (%d): request "
-                   "rejected, session ended\n", (int)status);
+        POX_LOG_ERR("[Attest][PoX] Session signature invalid (%d): "
+                   "request rejected, session ended\n", (int)status);
         return PSA_ERROR_NOT_PERMITTED;
     }
 
-    /* Rule 2: nonce-reuse check against the prover's book. */
+    /* Rule 2: nonce-reuse check against this partition's ring. */
     status = psa_hash_compute(PSA_ALG_SHA_256,
                               view->challenge, view->challenge_len,
                               digest, sizeof(digest), &digest_len);
-    if (status != PSA_SUCCESS || digest_len != POX_NONCE_DIGEST_LEN) {
+    if (status != PSA_SUCCESS || digest_len != ATTEST_NONCE_DIGEST_LEN) {
         return PSA_ERROR_GENERIC_ERROR;
     }
 
@@ -293,8 +263,7 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
      * go inside the critical section - the crypto IPC calls above must
      * stay interruptible (they context-switch to the crypto partition
      * and would deadlock with interrupts masked).
-     * PRIMASK save/restore; effective while the partition executes
-     * privileged (isolation level 1). */
+     * PRIMASK save/restore; this partition is PSA-RoT (privileged). */
     {
         uint32_t primask = __get_PRIMASK();
         bool     reused  = false;
@@ -302,7 +271,7 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
         __disable_irq();
 
         for (size_t i = 0; i < nonce_ring_count; i++) {
-            if (memcmp(nonce_ring[i], digest, POX_NONCE_DIGEST_LEN) == 0) {
+            if (memcmp(nonce_ring[i], digest, ATTEST_NONCE_DIGEST_LEN) == 0) {
                 reused = true;
                 break;
             }
@@ -311,7 +280,7 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
         if (!reused) {
             /* Record only after the signature verified. */
             memcpy(nonce_ring[nonce_ring_next], digest,
-                   POX_NONCE_DIGEST_LEN);
+                   ATTEST_NONCE_DIGEST_LEN);
             nonce_ring_next = (nonce_ring_next + 1u) % POX_NONCE_HISTORY;
             if (nonce_ring_count < POX_NONCE_HISTORY) {
                 nonce_ring_count++;
@@ -321,7 +290,8 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
         __set_PRIMASK(primask);
 
         if (reused) {
-            POX_LOG_ERR("[PoX] Nonce reuse detected: request rejected\n");
+            POX_LOG_ERR("[Attest][PoX] Nonce reuse detected: request "
+                       "rejected\n");
             return PSA_ERROR_NOT_PERMITTED;
         }
     }
@@ -329,28 +299,25 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
     return PSA_SUCCESS;
 }
 
-#else /* !POX_SESSION_AUTH */
+#else /* !POX_SESSION_AUTH_ATT */
 
-/*
- * Session auth disabled: keep the same link-time surface so callers
- * need no conditional compilation of their own.
- */
-psa_status_t pox_session_init(void)
+/* Session auth disabled for this path: same link surface, no-ops. */
+psa_status_t attest_session_init(void)
 {
     return PSA_SUCCESS;
 }
 
-psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
+psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
 {
     (void)view;
     return PSA_SUCCESS;
 }
 
 #if POX_BOOT_EPOCH
-uint32_t pox_session_get_epoch(void)
+uint32_t attest_session_get_epoch(void)
 {
     return 0;
 }
 #endif
 
-#endif /* POX_SESSION_AUTH */
+#endif /* POX_SESSION_AUTH_ATT */

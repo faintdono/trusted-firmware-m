@@ -11,6 +11,7 @@
 #include "psa/initial_attestation.h"
 #include "psa/client.h"
 #include "tfm_boot_status.h"
+#include "attest_session.h"   /* attest_session_ctx_t + session claim labels */
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,6 +116,9 @@ initial_attest_get_token_size(size_t challenge_size, size_t *token_size);
  * \param[in]     faddr         Pointer to function address to execute
  * \param[in]     challenge_buf Pointer to challenge buffer
  * \param[in]     challenge_size Size of challenge
+ * \param[in]     sess          Validated session context for the session
+ *                              claims (may be NULL when session auth is
+ *                              disabled)
  * \param[out]    token_buf     Pointer to token buffer
  * \param[in]     token_buf_size Size of token buffer
  * \param[out]    token_size    Pointer to store actual token size
@@ -125,6 +129,7 @@ psa_status_t
 attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t *output_len,
                    const void *challenge_buf, size_t challenge_size,
+                   const attest_session_ctx_t *sess,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size);
 

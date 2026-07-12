@@ -484,6 +484,7 @@ attest_add_nonce_claim(struct attest_token_encode_ctx   *token_ctx,
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
+#ifdef ATTEST_POX
 /*!
  * \brief Static function to add the faddr to proof of execution.
  *
@@ -537,6 +538,7 @@ attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
+#endif /* ATTEST_POX */
 
 /*!
  * \brief Static function to verify the input challenge size
@@ -782,6 +784,7 @@ error:
     return error_mapping_to_psa_status_t(attest_err);
 }
 
+#ifdef ATTEST_POX
 static enum psa_attest_err_t
 attest_pox_create_token(uintptr_t faddr,
                  const uint8_t *input,
@@ -931,3 +934,4 @@ attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t 
 error:
     return error_mapping_to_psa_status_t(attest_err);
 }
+#endif /* ATTEST_POX */

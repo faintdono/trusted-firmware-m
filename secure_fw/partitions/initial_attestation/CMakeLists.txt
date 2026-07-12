@@ -25,9 +25,9 @@ target_sources(tfm_psa_rot_partition_attestation PRIVATE
     $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:attest_asymmetric_key.c>
     $<$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>:attest_symmetric_key.c>
     attest_token_encode.c
-    attest_execute.c
-    attest_deserializer.c
-    attest_session.c
+    $<$<BOOL:${ATTEST_POX}>:attest_execute.c>
+    $<$<BOOL:${ATTEST_POX}>:attest_deserializer.c>
+    $<$<BOOL:${ATTEST_POX}>:attest_session.c>
 )
 
 # The generated sources
@@ -68,6 +68,9 @@ target_compile_definitions(tfm_psa_rot_partition_attestation
         $<$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>:SYMMETRIC_INITIAL_ATTESTATION>
         $<$<NOT:$<BOOL:${PLATFORM_DEFAULT_ATTEST_HAL}>>:CLAIM_VALUE_CHECK>
         $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:ATTEST_KEY_BITS=${ATTEST_KEY_BITS}>
+        # PoX inside the attestation partition (TFM_ATTEST_GET_POX):
+        # deserializer, NS-function execution, token path, session auth.
+        $<$<BOOL:${ATTEST_POX}>:ATTEST_POX=1>
         # PoX session auth for the TFM_ATTEST_GET_POX path. Own instance
         # and own flag (POX_SESSION_AUTH_ATT), independent from the
         # standalone PoX partition's POX_SESSION_AUTH, so the two paths

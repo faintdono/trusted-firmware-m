@@ -125,6 +125,7 @@ initial_attest_get_token_size(size_t challenge_size, size_t *token_size);
  *
  * \return Returns error code as specified in \ref psa_status_t
  */
+#ifdef ATTEST_POX
 psa_status_t
 attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t *output_len,
@@ -132,6 +133,7 @@ attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t 
                    const attest_session_ctx_t *sess,
                    void *token_buf, size_t token_buf_size,
                    size_t *token_size);
+#endif /* ATTEST_POX */
 
 #ifdef __cplusplus
 }

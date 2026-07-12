@@ -152,6 +152,7 @@ set(TFM_PARTITION_INITIAL_ATTESTATION   OFF         CACHE BOOL      "Enable Init
 set(SYMMETRIC_INITIAL_ATTESTATION       OFF         CACHE BOOL      "Use symmetric crypto for inital attestation")
 set(ATTEST_KEY_BITS                     256         CACHE STRING    "The size of the initial attestation key in bits")
 set(PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE   0x250       CACHE STRING    "The maximum possible size of a token")
+set(ATTEST_POX                          OFF         CACHE BOOL      "Compile the Proof-of-Execution path (TFM_ATTEST_GET_POX) into the Initial Attestation partition")
 
 set(TFM_PARTITION_PROOF_OF_EXECUTION    OFF         CACHE BOOL      "Enable Proof of Execution partition")
 

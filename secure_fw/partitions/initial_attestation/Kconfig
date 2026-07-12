@@ -27,9 +27,19 @@ config PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE
     hex  "The maximum possible size of a token"
     default 0x250
 
+config ATTEST_POX
+    bool "Proof of Execution inside Initial Attestation"
+    default n
+    help
+      Compile the PoX path (TFM_ATTEST_GET_POX) into this partition:
+      wire deserializer, NS function execution and the PoX token
+      creation. The standalone PoX partition is independent
+      (TFM_PARTITION_PROOF_OF_EXECUTION).
+
 config POX_SESSION_AUTH_ATT
     bool "PoX session authentication on the attestation-partition path"
     default n
+    depends on ATTEST_POX
     help
       Enforce verifier-signed session credentials (session_id +
       ECDSA P-256 transcript signature) for TFM_ATTEST_GET_POX

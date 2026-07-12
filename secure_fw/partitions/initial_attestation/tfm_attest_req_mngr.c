@@ -18,8 +18,10 @@
 #include "psa/service.h"
 #include "psa_manifest/tfm_initial_attestation.h"
 #include "tfm_attest_defs.h"
+#ifdef ATTEST_POX
 #include "tfm_pox_wire.h"
 #include "attest_session.h"
+#endif
 
 #define ECC_P256_PUBLIC_KEY_SIZE PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256)
 
@@ -129,6 +131,7 @@ static psa_status_t psa_attest_get_token_size(const psa_msg_t *msg)
     return status;
 }
 
+#ifdef ATTEST_POX
 static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
 {
     psa_status_t status = PSA_SUCCESS;
@@ -224,6 +227,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     
     return status;
 }
+#endif /* ATTEST_POX */
 
 psa_status_t tfm_attestation_service_sfn(const psa_msg_t *msg)
 {
@@ -232,8 +236,10 @@ psa_status_t tfm_attestation_service_sfn(const psa_msg_t *msg)
         return psa_attest_get_token(msg);
     case TFM_ATTEST_GET_TOKEN_SIZE:
         return psa_attest_get_token_size(msg);
+#ifdef ATTEST_POX
     case TFM_ATTEST_GET_POX:
         return psa_attest_proof_of_execution(msg);
+#endif
     default:
         return PSA_ERROR_NOT_SUPPORTED;
     }
@@ -243,6 +249,7 @@ psa_status_t attest_partition_init(void)
 {
     psa_status_t status = attest_init();
 
+#ifdef ATTEST_POX
     /* Session auth for the PoX path. On failure the partition keeps
      * running but the PoX path fails closed: every TFM_ATTEST_GET_POX
      * request is rejected. IAT services are unaffected. */
@@ -250,6 +257,7 @@ psa_status_t attest_partition_init(void)
         POX_LOG_INF("[Attest][PoX] WARNING: session auth init failed; "
                    "PoX requests will be rejected\n");
     }
+#endif /* ATTEST_POX */
 
     return status;
 }

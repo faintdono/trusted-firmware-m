@@ -4,8 +4,9 @@
  * Phase-1 session authentication for the PoX secure partition.
  *
  * Signature-only model: the verifier signs the request transcript
- *   ver(1)=0x02 | sid_len(1) | session_id | nonce_len(1) | challenge |
- *   faddr_le32(4)
+ *   v2: ver(1)=0x02 | sid_len(1) | session_id | nonce_len(1) |
+ *       challenge | faddr_le32(4)
+ *   v3 (POX_BOOT_EPOCH builds): ver(1)=0x03 | v2 fields | epoch_le32(4)
  * with its ECDSA P-256 private key (64-byte RAW r||s, PSA format).
  * The partition holds only the verifier PUBLIC key: no session secret,
  * no PSK, no ITS dependency (except the optional boot epoch counter).
@@ -222,9 +223,10 @@ psa_status_t pox_session_init(void)
 
 psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
 {
-    /* Transcript: ver | sid_len | sid | nonce_len | nonce | faddr_le32 */
+    /* Transcript v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32
+     * Transcript v3 (POX_BOOT_EPOCH): v2 fields | epoch_le32 */
     uint8_t      transcript[1 + 1 + POX_SESSION_ID_MAX +
-                            1 + POX_CHALLENGE_LEN_MAX + 4];
+                            1 + POX_CHALLENGE_LEN_MAX + 4 + 4];
     size_t       off = 0;
     uint32_t     faddr;
     uint8_t      digest[POX_NONCE_DIGEST_LEN];
@@ -250,7 +252,7 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
         return PSA_ERROR_NOT_PERMITTED;
     }
 
-    transcript[off++] = (uint8_t)POX_WIRE_VERSION;
+    transcript[off++] = (uint8_t)POX_TRANSCRIPT_VERSION;
     transcript[off++] = (uint8_t)view->session_id_len;
     memcpy(&transcript[off], view->session_id, view->session_id_len);
     off += view->session_id_len;
@@ -265,6 +267,17 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
     transcript[off++] = (uint8_t)(faddr >> 8);
     transcript[off++] = (uint8_t)(faddr >> 16);
     transcript[off++] = (uint8_t)(faddr >> 24);
+
+#if POX_BOOT_EPOCH
+    /* v3: bind the authorization to the current boot. A signature the
+     * verifier issued in a previous epoch fails here after reboot, so
+     * a captured request cannot be replayed across the reboot that
+     * wiped the nonce ring. */
+    transcript[off++] = (uint8_t)(boot_epoch_val);
+    transcript[off++] = (uint8_t)(boot_epoch_val >> 8);
+    transcript[off++] = (uint8_t)(boot_epoch_val >> 16);
+    transcript[off++] = (uint8_t)(boot_epoch_val >> 24);
+#endif
 
     /* Rule 1: signature check. sess_sig is 64-byte RAW r||s. */
     status = psa_verify_message(verifier_key_handle,
@@ -346,11 +359,7 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
     return PSA_SUCCESS;
 }
 
-#if POX_BOOT_EPOCH
-uint32_t pox_session_get_epoch(void)
-{
-    return 0;
-}
-#endif
+/* No epoch stub: POX_BOOT_EPOCH without POX_SESSION_AUTH is refused at
+ * build time in pox_session.h. */
 
 #endif /* POX_SESSION_AUTH */

@@ -28,6 +28,7 @@
   "irqs": [],
   "dependencies": [
     "TFM_ATTESTATION_SERVICE",
-    "TFM_CRYPTO"
+    "TFM_CRYPTO",
+    "TFM_INTERNAL_TRUSTED_STORAGE_SERVICE"
   ]
 }

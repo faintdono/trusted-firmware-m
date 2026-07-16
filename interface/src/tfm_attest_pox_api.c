@@ -29,6 +29,7 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
                                  size_t         session_id_len,
                                  const uint8_t *sess_sig,
                                  size_t         sess_sig_len,
+                                 uint32_t       seq,
                                  uint8_t       *token_buf,
                                  size_t         token_buf_size,
                                  size_t        *token_size)
@@ -54,7 +55,10 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
         .session_id = session_id,
         .session_id_len = session_id_len,
         .sess_sig = sess_sig,
-        .sess_sig_len = sess_sig_len
+        .sess_sig_len = sess_sig_len,
+        /* seq == 0 means "no SEQ TLV" (verifier counters start at 1). */
+        .seq = seq,
+        .has_seq = (seq != 0u),
     };
 
     if (serialize_ns_pox_call(&r, inbuf, sizeof(inbuf), &inlen) != SER_OK) {

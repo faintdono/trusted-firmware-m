@@ -204,8 +204,11 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
         .caller_id      = msg->client_id,
         .sess_sig       = view.sess_sig,
         .sess_sig_len   = view.sess_sig_len,
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH_ATT
         .boot_epoch     = attest_session_get_epoch(),
+#endif
+#if POX_SEQ_AUTH
+        .seq            = view.seq,
 #endif
     };
 

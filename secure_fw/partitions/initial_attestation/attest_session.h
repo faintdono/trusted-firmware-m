@@ -54,29 +54,28 @@
 #  define POX_NONCE_HISTORY 16
 #endif
 
-#ifndef POX_BOOT_EPOCH
-#  define POX_BOOT_EPOCH 0
+#ifndef POX_SEQ_AUTH
+#  define POX_SEQ_AUTH 0
 #endif
 
-/* The boot epoch exists to witness (and, being bound into the signed
- * transcript, to prevent) reboot-replay of verifier-authorized
- * requests. Without session authentication there is no authorization
- * to replay and the claim would be a constant 0 that auditors might
- * trust: refuse the combination at build time. */
-#if POX_BOOT_EPOCH && !POX_SESSION_AUTH_ATT
-#  error "POX_BOOT_EPOCH requires POX_SESSION_AUTH_ATT on the attestation PoX path."
+/* Monotonic sequence binding (transcript v3) replaces the bounded
+ * nonce ring with an O(1) per-session high-water mark. Seq covers
+ * in-boot replay; the boot epoch, which every session-auth build
+ * carries, covers cross-boot. Must stay identical to pox_session.h
+ * in the standalone partition. */
+#if POX_SEQ_AUTH && !POX_SESSION_AUTH_ATT
+#  error "POX_SEQ_AUTH requires POX_SESSION_AUTH_ATT on the attestation PoX path."
 #endif
 
 /*
- * Session transcript version. v2 covers
- *   ver | sid_len | sid | nonce_len | nonce | faddr_le32
- * v3 (POX_BOOT_EPOCH builds) appends epoch_le32, binding the verifier's
- * authorization to the current boot: a signature captured in epoch N
- * fails verification after reboot (epoch N+1), so reboot-replay is
- * rejected device-side instead of only being detectable in the token.
+ * Session transcript version.
+ *   v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
+ *       epoch_le32 (session auth without the epoch no longer exists:
+ *       it left reboot-replay open, so the two were merged)
+ *   v3 (POX_SEQ_AUTH): v2 | seq_le32
  * Must stay identical to pox_session.h in the standalone partition.
  */
-#if POX_BOOT_EPOCH
+#if POX_SEQ_AUTH
 #  define POX_TRANSCRIPT_VERSION (3u)
 #else
 #  define POX_TRANSCRIPT_VERSION (2u)
@@ -95,6 +94,8 @@
  * session auth is enabled: makes the token self-contained
  * authorization evidence for third parties. */
 #  define POX_LABEL_SESS_SIG      (-65540)
+/* Verifier-assigned monotonic request sequence (POX_SEQ_AUTH builds). */
+#  define POX_LABEL_SEQ           (-65541)
 #endif
 
 /*
@@ -110,8 +111,11 @@ typedef struct {
      * session auth is enabled (i.e. only after it verified). */
     const uint8_t *sess_sig;
     size_t         sess_sig_len;
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH_ATT
     uint32_t       boot_epoch;
+#endif
+#if POX_SEQ_AUTH
+    uint32_t       seq;            /* verifier-assigned monotonic seq */
 #endif
 } attest_session_ctx_t;
 
@@ -126,14 +130,15 @@ psa_status_t attest_session_init(void);
 /**
  * @brief Phase-1 enforcement over the deserialized request view:
  *        1. ECDSA-P256-SHA256 verify over the transcript
- *           (ver | sid_len | sid | nonce_len | nonce | faddr_le32
- *           [| epoch_le32 in POX_BOOT_EPOCH builds]).
- *        2. Nonce-reuse check against this partition's bounded RAM
- *           ring; recorded only after the signature verifies.
+ *           (ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
+ *           epoch_le32 [| seq_le32 in POX_SEQ_AUTH builds]).
+ *        2. Anti-replay: monotonic seq high-water mark (POX_SEQ_AUTH)
+ *           or nonce-reuse check against this partition's bounded RAM
+ *           ring; state updated only after the signature verifies.
  */
 psa_status_t attest_session_authenticate(const sec_pox_view_t *view);
 
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH_ATT
 /**
  * @brief Current boot epoch (valid after attest_session_init()).
  */

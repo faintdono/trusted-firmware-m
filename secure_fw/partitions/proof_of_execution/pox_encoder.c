@@ -83,9 +83,13 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
                 (UsefulBufC){ sess->sess_sig, sess->sess_sig_len });
         }
 #endif
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH
         QCBOREncode_AddUInt64ToMapN(&ec, POX_LABEL_BOOT_EPOCH,
                                     (uint64_t)sess->boot_epoch);
+#endif
+#if POX_SEQ_AUTH
+        QCBOREncode_AddUInt64ToMapN(&ec, POX_LABEL_SEQ,
+                                    (uint64_t)sess->seq);
 #endif
     }
 

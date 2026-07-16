@@ -76,7 +76,7 @@ target_compile_definitions(tfm_psa_rot_partition_attestation
         # standalone PoX partition's POX_SESSION_AUTH, so the two paths
         # can be built authenticated/unauthenticated separately.
         $<$<BOOL:${POX_SESSION_AUTH_ATT}>:POX_SESSION_AUTH_ATT=1>
-        $<$<BOOL:${POX_BOOT_EPOCH}>:POX_BOOT_EPOCH=1>
+        $<$<BOOL:${POX_SEQ_AUTH}>:POX_SEQ_AUTH=1>
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
         $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
 )

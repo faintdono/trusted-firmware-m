@@ -120,6 +120,13 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
             saw_sig = true;
             break;
 
+        case POX_TLV_SEQ:
+            if (out->has_seq) return SER_EMALFORMED;
+            if (l != 4) return SER_EMALFORMED;
+            out->seq = le32_load(val);
+            out->has_seq = true;
+            break;
+
         default:
             /* skip unknown types */
             break;

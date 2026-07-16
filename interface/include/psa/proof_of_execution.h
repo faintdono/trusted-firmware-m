@@ -91,6 +91,7 @@ psa_pox_get_token(uintptr_t      faddr,
                   size_t         session_id_len,
                   const uint8_t *sess_sig,
                   size_t         sess_sig_len,
+                  uint32_t       seq,
                   uint8_t       *token_buf,
                   size_t         token_buf_size,
                   size_t        *token_size);

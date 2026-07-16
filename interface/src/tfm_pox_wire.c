@@ -103,6 +103,11 @@ ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
         if (add_ov(n, 8u + (size_t)POX_SESS_SIG_LEN, &tmp))    return SER_E2BIG; n = tmp;
     }
 
+    /* SEQ TLV (iff present): 8 + 4 */
+    if (req->has_seq) {
+        if (add_ov(n, 8u + 4u, &tmp)) return SER_E2BIG; n = tmp;
+    }
+
     /* CRC (optional) */
     if (req->add_crc32) {
         if (add_ov(n, 4u, &tmp)) return SER_E2BIG; n = tmp;
@@ -175,6 +180,14 @@ ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
 
         st = put_tlv(out, cap, &off, POX_TLV_SESS_SIG,
                      req->sess_sig, POX_SESS_SIG_LEN, &tlv_count);
+        if (st != SER_OK) return st;
+    }
+
+    /* SEQ (4B LE) iff present */
+    if (req->has_seq) {
+        uint8_t tmp[4];
+        le32_store(tmp, req->seq);
+        ser_status_t st = put_tlv(out, cap, &off, POX_TLV_SEQ, tmp, 4, &tlv_count);
         if (st != SER_OK) return st;
     }
 

@@ -10,8 +10,8 @@
  *
  * Transcript:
  *   v2: ver(1)=0x02 | sid_len(1) | session_id | nonce_len(1) |
- *       challenge | faddr_le32(4)
- *   v3 (POX_BOOT_EPOCH builds): ver(1)=0x03 | v2 fields | epoch_le32(4)
+ *       challenge | faddr_le32(4) | epoch_le32(4)
+ *   v3 (POX_SEQ_AUTH builds): ver(1)=0x03 | v2 fields | seq_le32(4)
  * SIG: ECDSA-P256-SHA256, 64-byte RAW r||s (PSA format, NOT DER).
  */
 
@@ -21,9 +21,7 @@
 
 #if POX_SESSION_AUTH_ATT
 
-#if POX_BOOT_EPOCH
 #include "psa/internal_trusted_storage.h"
-#endif
 
 /* ------------------------------------------------------------------ */
 /* Verifier public key                                                  */
@@ -69,13 +67,18 @@ static const uint8_t attest_verifier_placeholder_ref[65] = {
 /* Zero means unusable: attest_session_authenticate() fails closed. */
 static psa_key_id_t verifier_key_handle = 0;
 
+#if POX_SEQ_AUTH
+/* Monotonic sequence high-water mark (O(1) form of the prover's book);
+ * see pox_session.c for the rationale. Private to this partition. */
+static uint32_t last_seq = 0;
+#else
 /* Nonce-reuse ring ("prover's book"), private to this partition. */
 #define ATTEST_NONCE_DIGEST_LEN 32u
 static uint8_t nonce_ring[POX_NONCE_HISTORY][ATTEST_NONCE_DIGEST_LEN];
 static size_t  nonce_ring_count = 0;
 static size_t  nonce_ring_next  = 0;
+#endif
 
-#if POX_BOOT_EPOCH
 /* ITS UID for the boot epoch counter ("POXA"). ITS is namespaced per
  * partition, but a distinct UID keeps debugging unambiguous. */
 #define ATTEST_EPOCH_ITS_UID ((psa_storage_uid_t)0x504F5841u)
@@ -117,7 +120,6 @@ static psa_status_t boot_epoch_init(void)
                (unsigned int)boot_epoch_val);
     return PSA_SUCCESS;
 }
-#endif /* POX_BOOT_EPOCH */
 
 /* ------------------------------------------------------------------ */
 /* Init                                                                 */
@@ -169,22 +171,30 @@ psa_status_t attest_session_init(void)
     }
 
     verifier_key_handle = imported_id;
+#if POX_SEQ_AUTH
+    last_seq = 0;
+#else
     nonce_ring_count = 0;
     nonce_ring_next  = 0;
+#endif
 
-#if POX_BOOT_EPOCH
     status = boot_epoch_init();
     if (status != PSA_SUCCESS) {
         (void)psa_destroy_key(verifier_key_handle);
         verifier_key_handle = 0;
         return status;
     }
-#endif
 
+#if POX_SEQ_AUTH
+    POX_LOG_INF("[Attest][PoX] Session auth ready (verifier key "
+               "handle=0x%x, monotonic seq)\n",
+               (unsigned int)verifier_key_handle);
+#else
     POX_LOG_INF("[Attest][PoX] Session auth ready (verifier key "
                "handle=0x%x, nonce ring=%u entries)\n",
                (unsigned int)verifier_key_handle,
                (unsigned int)POX_NONCE_HISTORY);
+#endif
     return PSA_SUCCESS;
 }
 
@@ -194,14 +204,17 @@ psa_status_t attest_session_init(void)
 
 psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
 {
-    /* Transcript v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32
-     * Transcript v3 (POX_BOOT_EPOCH): v2 fields | epoch_le32 */
+    /* Transcript v2: ver | sid_len | sid | nonce_len | nonce |
+     *                faddr_le32 | epoch_le32
+     * v3 (POX_SEQ_AUTH): v2 fields | seq_le32 */
     uint8_t      transcript[1 + 1 + POX_SESSION_ID_MAX +
-                            1 + POX_CHALLENGE_LEN_MAX + 4 + 4];
+                            1 + POX_CHALLENGE_LEN_MAX + 4 + 4 + 4];
     size_t       off = 0;
     uint32_t     faddr;
+#if !POX_SEQ_AUTH
     uint8_t      digest[ATTEST_NONCE_DIGEST_LEN];
     size_t       digest_len = 0;
+#endif
     psa_status_t status;
 
     if (view == NULL) {
@@ -223,6 +236,13 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
         return PSA_ERROR_NOT_PERMITTED;
     }
 
+#if POX_SEQ_AUTH
+    /* A v3 request must carry the seq TLV; 0 is reserved for absent. */
+    if (!view->has_seq || view->seq == 0u) {
+        return PSA_ERROR_NOT_PERMITTED;
+    }
+#endif
+
     transcript[off++] = (uint8_t)POX_TRANSCRIPT_VERSION;
     transcript[off++] = (uint8_t)view->session_id_len;
     memcpy(&transcript[off], view->session_id, view->session_id_len);
@@ -238,15 +258,21 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
     transcript[off++] = (uint8_t)(faddr >> 16);
     transcript[off++] = (uint8_t)(faddr >> 24);
 
-#if POX_BOOT_EPOCH
-    /* v3: bind the authorization to the current boot. A signature the
+    /* Bind the authorization to the current boot. A signature the
      * verifier issued in a previous epoch fails here after reboot, so
      * a captured request cannot be replayed across the reboot that
-     * wiped the nonce ring. */
+     * wiped the anti-replay state. */
     transcript[off++] = (uint8_t)(boot_epoch_val);
     transcript[off++] = (uint8_t)(boot_epoch_val >> 8);
     transcript[off++] = (uint8_t)(boot_epoch_val >> 16);
     transcript[off++] = (uint8_t)(boot_epoch_val >> 24);
+
+#if POX_SEQ_AUTH
+    /* v3: bind the verifier-assigned monotonic seq. */
+    transcript[off++] = (uint8_t)(view->seq);
+    transcript[off++] = (uint8_t)(view->seq >> 8);
+    transcript[off++] = (uint8_t)(view->seq >> 16);
+    transcript[off++] = (uint8_t)(view->seq >> 24);
 #endif
 
     /* Rule 1: signature check. sess_sig is 64-byte RAW r||s. */
@@ -260,6 +286,30 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
         return PSA_ERROR_NOT_PERMITTED;
     }
 
+#if POX_SEQ_AUTH
+    /* Rule 2 (v3): monotonic seq high-water mark. See pox_session.c. */
+    {
+        uint32_t primask = __get_PRIMASK();
+        bool     stale;
+
+        __disable_irq();
+        stale = (view->seq <= last_seq);
+        if (!stale) {
+            last_seq = view->seq;
+        }
+        __set_PRIMASK(primask);
+
+        if (stale) {
+            POX_LOG_ERR("[Attest][PoX] Stale seq %u (<= last %u): "
+                       "request rejected\n", (unsigned int)view->seq,
+                       (unsigned int)last_seq);
+            return PSA_ERROR_NOT_PERMITTED;
+        }
+    }
+
+    return PSA_SUCCESS;
+}
+#else
     /* Rule 2: nonce-reuse check against this partition's ring. */
     status = psa_hash_compute(PSA_ALG_SHA_256,
                               view->challenge, view->challenge_len,
@@ -311,6 +361,7 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
 
     return PSA_SUCCESS;
 }
+#endif /* POX_SEQ_AUTH */
 
 #else /* !POX_SESSION_AUTH_ATT */
 
@@ -326,7 +377,6 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
     return PSA_SUCCESS;
 }
 
-/* No epoch stub: POX_BOOT_EPOCH without POX_SESSION_AUTH_ATT is
- * refused at build time in attest_session.h. */
+/* No epoch stub: the boot epoch only exists with POX_SESSION_AUTH_ATT. */
 
 #endif /* POX_SESSION_AUTH_ATT */

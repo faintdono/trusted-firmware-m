@@ -25,6 +25,10 @@
  * session auth is enabled: makes the token self-contained
  * authorization evidence for third parties. */
 #define POX_LABEL_SESS_SIG      (-65540)
+/* Verifier-assigned monotonic request sequence (POX_SEQ_AUTH builds):
+ * lets an auditor order executions within a boot and, with the boot
+ * epoch, across boots. */
+#define POX_LABEL_SEQ           (-65541)
 
 #define MAX_SW_COMPONENTS       16
 #define MAX_MEASUREMENT_LEN     64

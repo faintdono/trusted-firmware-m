@@ -35,9 +35,20 @@
  * side rejects session-less requests when POX_SESSION_AUTH is enabled):
  *   SESSION_ID (len in [8..32])    opaque, verifier-assigned
  *   SESS_SIG   (len == 64)         ECDSA P-256 raw r||s over the
- *                                  request transcript:
- *                                  ver | sid_len | session_id |
- *                                  nonce_len | nonce | faddr_le32
+ *                                  request transcript (version byte
+ *                                  selects the layout):
+ *                                    v2: ver | sid_len | session_id |
+ *                                        nonce_len | nonce | faddr_le32 |
+ *                                        epoch_le32
+ *                                    v3: v2 | seq_le32
+ *   SEQ  (len == 4, LE)  optional  per-session monotonic request
+ *                                  counter (verifier-assigned). Present
+ *                                  in v3 (POX_SEQ_AUTH) builds; the
+ *                                  device accepts a request only when
+ *                                  seq strictly exceeds the highest it
+ *                                  has accepted this boot, which
+ *                                  replaces the bounded nonce ring with
+ *                                  O(1) state and no replay window.
  */
 
 #ifndef TFM_POX_WIRE_H
@@ -70,7 +81,8 @@ typedef enum {
     POX_TLV_INPUT_ADDR  = 0x0003,
     POX_TLV_OUTPUT_ADDR = 0x0004,
     POX_TLV_SESSION_ID  = 0x0005,
-    POX_TLV_SESS_SIG    = 0x0006
+    POX_TLV_SESS_SIG    = 0x0006,
+    POX_TLV_SEQ         = 0x0007
 } pox_tlv_type_t;
 
 #define POX_CHALLENGE_LEN_MIN        (32u)
@@ -115,6 +127,12 @@ typedef struct {
                                      NULL if none */
     uint32_t       sess_sig_len;  /* must be POX_SESS_SIG_LEN if present */
 
+    /* Per-session monotonic request counter (verifier-assigned).
+     * Emitted as the SEQ TLV iff has_seq; bound into the v3 transcript
+     * signed by the verifier. */
+    uint32_t       seq;
+    bool           has_seq;
+
     bool           add_crc32;     /* append CRC-32 if true */
 } ns_pox_call_req_t;
 
@@ -150,6 +168,10 @@ typedef struct {
     uint32_t       session_id_len;
     const uint8_t *sess_sig;
     uint32_t       sess_sig_len;
+
+    /* Per-session monotonic request counter; valid iff has_seq. */
+    uint32_t       seq;
+    bool           has_seq;
 
     /* Header meta */
     uint8_t        version;

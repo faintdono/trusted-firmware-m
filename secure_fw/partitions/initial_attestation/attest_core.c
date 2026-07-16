@@ -870,10 +870,15 @@ attest_pox_create_token(uintptr_t faddr,
                                          POX_LABEL_SESS_SIG, &ssig);
         }
 #endif
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH_ATT
         attest_token_encode_add_integer(&attest_token_ctx,
                                         POX_LABEL_BOOT_EPOCH,
                                         (int64_t)sess->boot_epoch);
+#endif
+#if POX_SEQ_AUTH
+        attest_token_encode_add_integer(&attest_token_ctx,
+                                        POX_LABEL_SEQ,
+                                        (int64_t)sess->seq);
 #endif
     }
 

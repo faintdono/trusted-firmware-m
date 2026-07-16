@@ -44,6 +44,7 @@ psa_pox_get_token(uintptr_t      faddr,
                   size_t         session_id_len,
                   const uint8_t *sess_sig,
                   size_t         sess_sig_len,
+                  uint32_t       seq,
                   uint8_t       *token_buf,
                   size_t         token_buf_size,
                   size_t        *token_size)
@@ -82,6 +83,9 @@ psa_pox_get_token(uintptr_t      faddr,
         .session_id_len  = (uint32_t)session_id_len,
         .sess_sig        = sess_sig,
         .sess_sig_len    = (uint32_t)sess_sig_len,
+        /* seq == 0 means "no SEQ TLV" (verifier counters start at 1). */
+        .seq             = seq,
+        .has_seq         = (seq != 0u),
         .add_crc32       = false,
     };
 

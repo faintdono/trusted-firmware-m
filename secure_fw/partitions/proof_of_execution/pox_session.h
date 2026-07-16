@@ -30,28 +30,32 @@
 #  define POX_NONCE_HISTORY 16
 #endif
 
-#ifndef POX_BOOT_EPOCH
-#  define POX_BOOT_EPOCH 0
+#ifndef POX_SEQ_AUTH
+#  define POX_SEQ_AUTH 0
 #endif
 
-/* The boot epoch exists to witness (and, being bound into the signed
- * transcript, to prevent) reboot-replay of verifier-authorized
- * requests. Without session authentication there is no authorization
- * to replay and the claim would be a constant 0 that auditors might
- * trust: refuse the combination at build time. */
-#if POX_BOOT_EPOCH && !POX_SESSION_AUTH
-#  error "POX_BOOT_EPOCH requires POX_SESSION_AUTH: the epoch claim is meaningless without session authentication."
+/* Monotonic sequence binding (transcript v3) replaces the bounded
+ * nonce ring with an O(1) per-session high-water mark: a request is
+ * accepted only if its verifier-assigned seq strictly exceeds the
+ * highest accepted this boot, so there is no eviction window a
+ * replayer can exploit. It only defends in-boot replay; cross-boot
+ * replay is the boot epoch's job, which every session-auth build
+ * carries. */
+#if POX_SEQ_AUTH && !POX_SESSION_AUTH
+#  error "POX_SEQ_AUTH requires POX_SESSION_AUTH."
 #endif
 
 /*
- * Session transcript version. v2 covers
- *   ver | sid_len | sid | nonce_len | nonce | faddr_le32
- * v3 (POX_BOOT_EPOCH builds) appends epoch_le32, binding the verifier's
- * authorization to the current boot: a signature captured in epoch N
- * fails verification after reboot (epoch N+1), so reboot-replay is
- * rejected device-side instead of only being detectable in the token.
+ * Session transcript version.
+ *   v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
+ *       epoch_le32 - the boot epoch binds the authorization to the
+ *       current boot; a signature from epoch N fails after reboot.
+ *       (Session auth without the epoch no longer exists: it left
+ *       reboot-replay open, so the two were merged.)
+ *   v3 (POX_SEQ_AUTH): v2 | seq_le32 - adds the monotonic counter
+ *       that retires the nonce ring.
  */
-#if POX_BOOT_EPOCH
+#if POX_SEQ_AUTH
 #  define POX_TRANSCRIPT_VERSION (3u)
 #else
 #  define POX_TRANSCRIPT_VERSION (2u)
@@ -73,8 +77,11 @@ typedef struct {
      * session auth is enabled (i.e. only after it verified). */
     const uint8_t *sess_sig;
     size_t         sess_sig_len;
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH
     uint32_t       boot_epoch;
+#endif
+#if POX_SEQ_AUTH
+    uint32_t       seq;            /* verifier-assigned monotonic seq */
 #endif
 } pox_session_ctx_t;
 
@@ -84,28 +91,29 @@ typedef struct {
  *        - imports the verifier PUBLIC key as a VOLATILE PSA key
  *          (integrity-, not confidentiality-sensitive: compile-time
  *          constant, no ITS, re-imported each boot);
- *        - if POX_BOOT_EPOCH: reads, increments and writes back the
- *          boot epoch counter (one small ITS write per boot — the only
- *          optional ITS use in this partition).
+ *        - reads, increments and writes back the boot epoch counter
+ *          (one small ITS write per boot — the only ITS use in this
+ *          partition).
  */
 psa_status_t pox_session_init(void);
 
 /**
  * @brief Phase-1 enforcement, in order:
  *        1. ECDSA-P256-SHA256 verify over the transcript
- *           (ver | sid_len | sid | nonce_len | nonce | faddr_le32
- *           [| epoch_le32 in POX_BOOT_EPOCH builds]).
+ *           (ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
+ *           epoch_le32 [| seq_le32 in POX_SEQ_AUTH builds]).
  *           Invalid -> PSA_ERROR_NOT_PERMITTED: reject, end session,
  *           no state change.
- *        2. Nonce-reuse check against the bounded RAM ring (the
+ *        2. Anti-replay: monotonic seq high-water mark (POX_SEQ_AUTH)
+ *           or nonce-reuse check against the bounded RAM ring (the
  *           "prover's book"; the verifier keeps the authoritative
- *           book). Reused -> PSA_ERROR_NOT_PERMITTED.
- *        3. Nonce recorded in the ring — only after the signature
- *           verifies, so unauthenticated traffic cannot pollute it.
+ *           book). Stale/reused -> PSA_ERROR_NOT_PERMITTED.
+ *        3. State updated only after the signature verifies, so
+ *           unauthenticated traffic cannot pollute it.
  */
 psa_status_t pox_session_authenticate(const sec_pox_view_t *view);
 
-#if POX_BOOT_EPOCH
+#if POX_SESSION_AUTH
 /**
  * @brief Current boot epoch (valid after pox_session_init()).
  */

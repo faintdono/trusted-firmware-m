@@ -7,13 +7,8 @@ typedef int (*ns_function_ptr_with_args_t)(const uint8_t *input, uint32_t input_
 typedef int (*ns_function_ptr_void_t)(void) __attribute__((cmse_nonsecure_call));
 
 /**
- * @brief Execute a non-secure function from the secure world via its address.
- *
- * @param faddr       Non-secure function address
- * @param input       Input buffer (may be NULL)
- * @param input_len   Length of input
- * @param output      Output buffer (may be NULL)
- * @param output_len  In: capacity; out: bytes written
+ * @brief Execute a non-secure function from the secure world via its
+ *        address. output_len is in: capacity, out: bytes written.
  */
 int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
                uint8_t *output, uint32_t *output_len);

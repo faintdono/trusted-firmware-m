@@ -1,15 +1,10 @@
 /*
  * pox_session.h
  *
- * Phase-1 session authentication for the PoX secure partition.
- *
- * Signature-only model: the verifier signs the request transcript with
- * its ECDSA P-256 private key; the SP verifies with the verifier's
- * public key. The SP holds NO session secret.
- *
- * Enforcement rules (in order, before any PoX processing):
- *   1. Invalid signature  -> reject request, end session.
- *   2. Reused nonce       -> reject request.
+ * Session authentication for the PoX secure partition: the verifier
+ * signs the request transcript with its ECDSA P-256 private key, the
+ * SP verifies with the verifier's public key and holds NO session
+ * secret. Invalid signature or replayed request -> reject.
  */
 
 #ifndef POX_SESSION_H
@@ -20,8 +15,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Kconfig-driven; default off if the build system does not define it,
- * matching the POX_ALLOW_RUNTIME_KEY_OVERRIDE pattern in pox.h. */
+/* Kconfig-driven; default off if the build system does not define it. */
 #ifndef POX_SESSION_AUTH
 #  define POX_SESSION_AUTH 0
 #endif
@@ -35,12 +29,9 @@
 #endif
 
 /* Monotonic sequence binding (transcript v3) replaces the bounded
- * nonce ring with an O(1) per-session high-water mark: a request is
- * accepted only if its verifier-assigned seq strictly exceeds the
- * highest accepted this boot, so there is no eviction window a
- * replayer can exploit. It only defends in-boot replay; cross-boot
- * replay is the boot epoch's job, which every session-auth build
- * carries. */
+ * nonce ring with an O(1) high-water mark, so there is no eviction
+ * window. It defends in-boot replay only; cross-boot replay is the
+ * boot epoch's job, which every session-auth build carries. */
 #if POX_SEQ_AUTH && !POX_SESSION_AUTH
 #  error "POX_SEQ_AUTH requires POX_SESSION_AUTH."
 #endif
@@ -62,12 +53,10 @@
 #endif
 
 /*
- * Validated session context, passed down to the encoder.
- *
- * NOTE: no nonce field on purpose — the verifier nonce IS the IAT
- * challenge. It reaches the PoX token via IATClaims.nonce (IAT_NONCE),
- * bound into the signed IAT by the attestation service, and is
- * cross-checked against the wire challenge in pox_create_token().
+ * Validated session context, passed down to the encoder. No nonce
+ * field on purpose: the verifier nonce IS the IAT challenge, reaching
+ * the token via IAT_NONCE (bound into the signed IAT) and cross-checked
+ * against the wire challenge in pox_create_token().
  */
 typedef struct {
     const uint8_t *session_id;
@@ -86,37 +75,24 @@ typedef struct {
 } pox_session_ctx_t;
 
 /**
- * @brief One-shot init, call from pox_init() after the signing key
- *        registration:
- *        - imports the verifier PUBLIC key as a VOLATILE PSA key
- *          (integrity-, not confidentiality-sensitive: compile-time
- *          constant, no ITS, re-imported each boot);
- *        - reads, increments and writes back the boot epoch counter
- *          (one small ITS write per boot — the only ITS use in this
- *          partition).
+ * @brief One-shot init from pox_init(), after the signing key is
+ *        registered: imports the verifier PUBLIC key as a VOLATILE PSA
+ *        key, then reads/increments/writes back the boot epoch counter
+ *        (the partition's only ITS use, one small write per boot).
  */
 psa_status_t pox_session_init(void);
 
 /**
- * @brief Phase-1 enforcement, in order:
- *        1. ECDSA-P256-SHA256 verify over the transcript
- *           (ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
- *           epoch_le32 [| seq_le32 in POX_SEQ_AUTH builds]).
- *           Invalid -> PSA_ERROR_NOT_PERMITTED: reject, end session,
- *           no state change.
- *        2. Anti-replay: monotonic seq high-water mark (POX_SEQ_AUTH)
- *           or nonce-reuse check against the bounded RAM ring (the
- *           "prover's book"; the verifier keeps the authoritative
- *           book). Stale/reused -> PSA_ERROR_NOT_PERMITTED.
- *        3. State updated only after the signature verifies, so
- *           unauthenticated traffic cannot pollute it.
+ * @brief Enforcement, in order: ECDSA-P256-SHA256 verify over the
+ *        transcript, then anti-replay (seq high-water mark, or the
+ *        bounded nonce ring). Either failure ->
+ *        PSA_ERROR_NOT_PERMITTED with no state change; anti-replay
+ *        state is updated only once the signature verified.
  */
 psa_status_t pox_session_authenticate(const sec_pox_view_t *view);
 
 #if POX_SESSION_AUTH
-/**
- * @brief Current boot epoch (valid after pox_session_init()).
- */
+/** @brief Current boot epoch (valid after pox_session_init()). */
 uint32_t pox_session_get_epoch(void);
 #endif
 

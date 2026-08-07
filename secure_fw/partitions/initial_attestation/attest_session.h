@@ -2,18 +2,11 @@
  * attest_session.h
  *
  * Session authentication for the attestation partition's PoX path
- * (TFM_ATTEST_GET_POX). Self-contained: no dependency on the
- * standalone proof_of_execution partition, only on the shared wire
- * format header (tfm_pox_wire.h).
- *
- * Signature-only model, same protocol as the standalone PoX partition:
- * the verifier signs the request transcript with its ECDSA P-256
- * private key; this partition verifies with the verifier's public key
- * and holds NO session secret.
- *
- * Enforcement rules (in order, before any PoX processing):
- *   1. Invalid signature  -> reject request, end session.
- *   2. Reused nonce       -> reject request.
+ * (TFM_ATTEST_GET_POX). Self-contained: depends only on the shared
+ * wire header, not on the standalone proof_of_execution partition.
+ * Same protocol as that partition: the verifier signs the request
+ * transcript, this side verifies with the verifier's public key and
+ * holds NO session secret. Invalid signature or replay -> reject.
  *
  * Gated by POX_SESSION_AUTH_ATT (independent from the standalone
  * partition's POX_SESSION_AUTH) so the two PoX paths can be built
@@ -28,15 +21,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Kconfig/CMake-driven; default off if the build system does not
- * define it. */
+/* Kconfig/CMake-driven; default off if not defined by the build. */
 #ifndef POX_SESSION_AUTH_ATT
 #  define POX_SESSION_AUTH_ATT 0
 #endif
 
-/* Switchable logging for the attestation partition's PoX path (same
- * flag as the standalone partition's pox_log.h; own copy to stay
- * decoupled). 0 compiles the calls out - benchmark baseline parity. */
+/* Own copy of pox_log.h's switch, to stay decoupled from that
+ * partition. 0 compiles the calls out: benchmark baseline parity. */
 #ifndef POX_LOG_ENABLE
 #  define POX_LOG_ENABLE 0
 #endif
@@ -58,22 +49,18 @@
 #  define POX_SEQ_AUTH 0
 #endif
 
-/* Monotonic sequence binding (transcript v3) replaces the bounded
- * nonce ring with an O(1) per-session high-water mark. Seq covers
- * in-boot replay; the boot epoch, which every session-auth build
- * carries, covers cross-boot. Must stay identical to pox_session.h
- * in the standalone partition. */
+/* Seq covers in-boot replay, the always-bound boot epoch covers
+ * cross-boot. Must stay identical to the standalone pox_session.h. */
 #if POX_SEQ_AUTH && !POX_SESSION_AUTH_ATT
 #  error "POX_SEQ_AUTH requires POX_SESSION_AUTH_ATT on the attestation PoX path."
 #endif
 
 /*
- * Session transcript version.
+ * Session transcript version. Must stay identical to pox_session.h.
  *   v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
- *       epoch_le32 (session auth without the epoch no longer exists:
- *       it left reboot-replay open, so the two were merged)
+ *       epoch_le32 (auth without the epoch no longer exists: it left
+ *       reboot-replay open, so the two were merged)
  *   v3 (POX_SEQ_AUTH): v2 | seq_le32
- * Must stay identical to pox_session.h in the standalone partition.
  */
 #if POX_SEQ_AUTH
 #  define POX_TRANSCRIPT_VERSION (3u)
@@ -82,33 +69,30 @@
 #endif
 
 /*
- * PoX session-auth claim labels: CBOR private-use range. Values must
- * stay identical to pox_common.h in the standalone PoX partition so
- * both token flavours decode the same way verifier-side.
+ * Claim labels, CBOR private-use range. Must stay identical to
+ * pox_common.h so both token flavours decode the same way
+ * verifier-side. SESS_SIG is the 64B raw r||s verifier transcript
+ * signature, which makes the token self-contained authorization
+ * evidence for third parties.
  */
 #ifndef POX_LABEL_SESSION_ID
 #  define POX_LABEL_SESSION_ID    (-65537)
 #  define POX_LABEL_CALLER_ID     (-65538)
 #  define POX_LABEL_BOOT_EPOCH    (-65539)
-/* Verifier transcript signature (64B raw r||s), embedded whenever
- * session auth is enabled: makes the token self-contained
- * authorization evidence for third parties. */
 #  define POX_LABEL_SESS_SIG      (-65540)
-/* Verifier-assigned monotonic request sequence (POX_SEQ_AUTH builds). */
 #  define POX_LABEL_SEQ           (-65541)
 #endif
 
 /*
- * Validated session context, passed down to the token encoder.
- * No nonce field on purpose: the verifier nonce IS the token
- * challenge and flows via the nonce claim.
+ * Validated session context, passed down to the token encoder. No
+ * nonce field on purpose: the verifier nonce IS the token challenge
+ * and flows via the nonce claim.
  */
 typedef struct {
     const uint8_t *session_id;
     size_t         session_id_len;
     int32_t        caller_id;          /* msg->client_id, SPM-supplied */
-    /* Verifier transcript signature; emitted as a claim whenever
-     * session auth is enabled (i.e. only after it verified). */
+    /* Emitted as a claim only after it verified. */
     const uint8_t *sess_sig;
     size_t         sess_sig_len;
 #if POX_SESSION_AUTH_ATT
@@ -128,20 +112,15 @@ typedef struct {
 psa_status_t attest_session_init(void);
 
 /**
- * @brief Phase-1 enforcement over the deserialized request view:
- *        1. ECDSA-P256-SHA256 verify over the transcript
- *           (ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
- *           epoch_le32 [| seq_le32 in POX_SEQ_AUTH builds]).
- *        2. Anti-replay: monotonic seq high-water mark (POX_SEQ_AUTH)
- *           or nonce-reuse check against this partition's bounded RAM
- *           ring; state updated only after the signature verifies.
+ * @brief Enforcement over the deserialized request view:
+ *        ECDSA-P256-SHA256 verify over the transcript, then anti-replay
+ *        (seq high-water mark, or this partition's own nonce ring).
+ *        State is updated only after the signature verifies.
  */
 psa_status_t attest_session_authenticate(const sec_pox_view_t *view);
 
 #if POX_SESSION_AUTH_ATT
-/**
- * @brief Current boot epoch (valid after attest_session_init()).
- */
+/** @brief Current boot epoch (valid after attest_session_init()). */
 uint32_t attest_session_get_epoch(void);
 #endif
 

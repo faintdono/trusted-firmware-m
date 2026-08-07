@@ -127,9 +127,8 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
 
     /*
      * The verifier nonce IS the IAT challenge: the attestation service
-     * must have embedded exactly the Phase-1-authenticated bytes. A
-     * mismatch means substitution or corruption between the phases,
-     * and the token must not be issued.
+     * must have embedded exactly the authenticated bytes. A mismatch
+     * means substitution or corruption, so no token may be issued.
      */
     if (challenge_buf == NULL ||
         claims.nonce_len != challenge_size ||

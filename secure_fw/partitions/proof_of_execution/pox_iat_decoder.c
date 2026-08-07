@@ -4,14 +4,12 @@
  * Decodes the CBOR payload of an IAT COSE_Sign1 token into an IATClaims
  * struct for use by the PoX encoder.
  *
- * Signature verification is intentionally skipped — the attestation
- * service already produced and verified the token.  We extract the
- * payload bstr from the COSE_Sign1 array directly with QCBOR and
- * decode the EAT claims map inside it.
+ * Signature verification is intentionally skipped: the attestation
+ * service already produced and verified the token, so the payload
+ * bstr is extracted from the COSE_Sign1 array directly.
  *
- * Uses QCBOR v1.2 API: QCBORDecode_GetAndResetError() to clear
- * accumulated errors after each optional field lookup.
- * (QCBORDecode_ClearError does not exist in v1.2.)
+ * QCBOR v1.2 API: errors after each optional lookup are cleared with
+ * QCBORDecode_GetAndResetError() (ClearError does not exist in v1.2).
  */
 
 #include "pox_iat_decoder.h"
@@ -23,20 +21,17 @@
 
 #include <string.h>
 
-/* Shorthand: consume and discard any accumulated QCBOR error,
- * resetting the context so the next lookup can proceed.          */
+/* Consume and discard any accumulated QCBOR error so the next
+ * optional lookup can proceed. */
 #define QCBOR_IGNORE_ERR(dc)  (void)QCBORDecode_GetAndResetError(dc)
 
-/* ------------------------------------------------------------------ */
-/* Internal: parse one SW component map                                */
-/* ------------------------------------------------------------------ */
+/* Internal: parse one SW component map */
 static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
 {
     memset(sw, 0, sizeof(*sw));
 
     QCBORDecode_EnterMap(dc, NULL);
 
-    /* Measurement type (text) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(dc,
@@ -52,7 +47,6 @@ static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
         QCBOR_IGNORE_ERR(dc);
     }
 
-    /* Measurement value (bstr) */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(dc,
@@ -67,7 +61,6 @@ static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
         QCBOR_IGNORE_ERR(dc);
     }
 
-    /* Version (text) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(dc, IAT_SW_COMPONENT_VERSION, &val);
@@ -81,7 +74,6 @@ static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
         QCBOR_IGNORE_ERR(dc);
     }
 
-    /* Signer ID (bstr) */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(dc, IAT_SW_COMPONENT_SIGNER_ID, &val);
@@ -95,7 +87,6 @@ static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
         QCBOR_IGNORE_ERR(dc);
     }
 
-    /* Measurement description (text, optional) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(dc,
@@ -114,9 +105,7 @@ static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
     QCBORDecode_ExitMap(dc);
 }
 
-/* ------------------------------------------------------------------ */
-/* Public API                                                           */
-/* ------------------------------------------------------------------ */
+/* Public API */
 
 psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
                                    size_t         iat_token_sz,
@@ -128,12 +117,8 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
 
     memset(claims, 0, sizeof(*claims));
 
-    /*
-     * COSE_Sign1 structure:
-     *   array[ protected-bstr, unprotected-map, payload-bstr, sig-bstr ]
-     *
-     * We skip straight to the payload bstr at index [2].
-     */
+    /* COSE_Sign1 is array[ protected-bstr, unprotected-map,
+     * payload-bstr, sig-bstr ]: skip straight to payload at [2]. */
     QCBORDecodeContext outer;
     QCBORDecode_Init(&outer,
                      (UsefulBufC){ iat_token_buf, iat_token_sz },
@@ -162,12 +147,10 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
     QCBORDecode_ExitArray(&outer);
     QCBORDecode_Finish(&outer);
 
-    /* ---- Decode the EAT claims map inside the payload ---- */
     QCBORDecodeContext dc;
     QCBORDecode_Init(&dc, payload, QCBOR_DECODE_MODE_NORMAL);
     QCBORDecode_EnterMap(&dc, NULL);
 
-    /* Nonce */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(&dc, IAT_NONCE, &val);
@@ -180,7 +163,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Instance ID */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(&dc, IAT_INSTANCE_ID, &val);
@@ -193,7 +175,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Implementation ID */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(&dc, IAT_IMPLEMENTATION_ID, &val);
@@ -206,7 +187,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Security lifecycle */
     {
         int64_t val = 0;
         QCBORDecode_GetInt64InMapN(&dc, IAT_SECURITY_LIFECYCLE, &val);
@@ -216,7 +196,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Profile definition (text) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(&dc, IAT_PROFILE_DEFINITION, &val);
@@ -231,7 +210,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
     }
 
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
-    /* Boot seed */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(&dc, IAT_BOOT_SEED, &val);
@@ -245,7 +223,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Client ID */
     {
         int64_t val = 0;
         QCBORDecode_GetInt64InMapN(&dc, IAT_CLIENT_ID, &val);
@@ -256,7 +233,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Certification reference (optional, text) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(&dc, IAT_CERTIFICATION_REFERENCE,
@@ -273,7 +249,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
 #endif /* ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0 */
 
 #if ATTEST_TOKEN_PROFILE_ARM_CCA
-    /* Platform config (bstr, CCA only) */
     {
         UsefulBufC val;
         QCBORDecode_GetByteStringInMapN(&dc, IAT_PLATFORM_CONFIG, &val);
@@ -287,7 +262,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* Platform hash algo ID (text, CCA only) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(&dc, IAT_PLATFORM_HASH_ALGO_ID, &val);
@@ -302,7 +276,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
     }
 #endif /* ATTEST_TOKEN_PROFILE_ARM_CCA */
 
-    /* Verification service (optional, all profiles) */
     {
         UsefulBufC val;
         QCBORDecode_GetTextStringInMapN(&dc, IAT_VERIFICATION_SERVICE, &val);
@@ -316,7 +289,6 @@ psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
         QCBOR_IGNORE_ERR(&dc);
     }
 
-    /* SW components array */
     {
         QCBORDecode_EnterArrayFromMapN(&dc, IAT_SW_COMPONENTS);
         if (QCBORDecode_GetError(&dc) == QCBOR_SUCCESS) {

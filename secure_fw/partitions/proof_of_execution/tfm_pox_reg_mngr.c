@@ -2,10 +2,9 @@
  * tfm_pox_reg_mngr.c
  *
  * IPC request manager for the Proof-of-Execution (PoX) secure partition.
- * Deserializes the wire-format request from the NS caller, validates it,
- * authenticates the session (Phase 1: verifier signature + nonce-reuse
- * checks), then invokes proof_of_execution() and writes the resulting
- * token back.
+ * Deserializes the wire-format request from the NS caller, validates
+ * and authenticates it, then invokes proof_of_execution() and writes
+ * the resulting token back.
  */
 
 #include "psa/error.h"
@@ -21,10 +20,6 @@
 
 /* Shared output buffer for the signed PoX token */
 static uint8_t token_buff[ATT_MAX_TOKEN_SIZE];
-
-/* ------------------------------------------------------------------ */
-/* PSA IPC call handler                                                 */
-/* ------------------------------------------------------------------ */
 
 static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 {
@@ -45,13 +40,11 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    /* Read the serialised request from the NS caller */
     bytes_read = psa_read(msg->handle, 0, inbuf, inbuf_size);
     if (bytes_read != inbuf_size) {
         return PSA_ERROR_GENERIC_ERROR;
     }
 
-    /* Deserialise the TLV wire format into a sec_pox_view_t */
     sec_pox_view_t view = {0};
     ser_status_t st = deserialize_ns_pox_call(inbuf, inbuf_size, &view);
     if (st != SER_OK) {
@@ -73,16 +66,12 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    /* ---------------- Phase 1: session authentication ---------------- */
 #if POX_SESSION_AUTH
     if (view.session_id == NULL || view.sess_sig == NULL) {
         POX_LOG_INF("[PoX] Missing session credentials: rejecting\n");
         return PSA_ERROR_NOT_PERMITTED;
     }
 
-    /* Rule 1: invalid signature -> reject, end session.
-     * Rule 2: reused nonce      -> reject.
-     * The nonce is recorded only after the signature verifies. */
     status = pox_session_authenticate(&view);
     if (status != PSA_SUCCESS) {
         POX_LOG_INF("[PoX] Session authentication failed (0x%x)\n",
@@ -133,10 +122,6 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 
     return status;
 }
-
-/* ------------------------------------------------------------------ */
-/* IPC signal handler and partition entry point                         */
-/* ------------------------------------------------------------------ */
 
 static psa_status_t pox_ipc_handler(psa_signal_t signal)
 {

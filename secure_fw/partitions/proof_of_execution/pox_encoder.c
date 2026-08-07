@@ -2,11 +2,9 @@
  * pox_encoder.c
  *
  * Encodes the PoX CBOR claims map from decoded IAT claims plus the
- * proof-of-execution extension claims (faddr, exec_output).
- *
- * CCA-only claims (IAT_PLATFORM_CONFIG, IAT_PLATFORM_HASH_ALGO_ID) are
- * guarded by #if ATTEST_TOKEN_PROFILE_ARM_CCA so they compile cleanly
- * under PSA_IOT_1 and PSA_2_0_0 profiles too.
+ * extension claims (faddr, exec_output). CCA-only claims are guarded
+ * by #if ATTEST_TOKEN_PROFILE_ARM_CCA so the file also compiles under
+ * the PSA_IOT_1 and PSA_2_0_0 profiles.
  */
 
 #include "pox_encoder.h"
@@ -44,9 +42,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
      *        platform_config, verification_service
      */
 
-    /* ---------------------------------------------------------------- */
     /* PoX extension claims — first, matching attest_pox_create_token() */
-    /* ---------------------------------------------------------------- */
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_POX_FADDR, (uint64_t)faddr);
 
     /* 1-byte bytestring, matching attest_add_execution_value() which uses
@@ -55,17 +51,11 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     QCBOREncode_AddBytesToMapN(&ec, IAT_POX_OUT,
                                (UsefulBufC){ &out_byte, sizeof(out_byte) });
 
-    /* ---------------------------------------------------------------- */
-    /* Nonce                                                             */
-    /* ---------------------------------------------------------------- */
     if (iat->nonce_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_NONCE,
             (UsefulBufC){ iat->nonce, iat->nonce_len });
     }
 
-    /* ---------------------------------------------------------------- */
-    /* Session-authentication claims (private-use labels)                */
-    /* ---------------------------------------------------------------- */
     if (sess != NULL) {
         if (sess->session_id != NULL && sess->session_id_len > 0) {
             QCBOREncode_AddBytesToMapN(&ec, POX_LABEL_SESSION_ID,
@@ -93,9 +83,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 #endif
     }
 
-    /* ---------------------------------------------------------------- */
-    /* Standard EAT claims — same order as claim_query_funcs[]          */
-    /* ---------------------------------------------------------------- */
+    /* Standard EAT claims — same order as claim_query_funcs[] */
 
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
     /* Boot seed (PSA_IOT_1 / PSA_2_0_0 first in claim_query_funcs) */

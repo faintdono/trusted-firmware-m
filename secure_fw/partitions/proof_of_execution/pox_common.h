@@ -15,19 +15,17 @@
 #include "config_tfm.h"   /* pulls in ATTEST_TOKEN_PROFILE_* defines */
 
 /*
- * PoX session-authentication claim labels: CBOR private-use range
- * (negative, below the -65536 boundary reserved by CoRIM/EAT).
+ * Session-auth claim labels: CBOR private-use range (negative, below
+ * the -65536 boundary reserved by CoRIM/EAT). SESS_SIG carries the
+ * 64B raw r||s verifier transcript signature, making the token
+ * self-contained authorization evidence for third parties; SEQ lets
+ * an auditor order executions within a boot (and, with BOOT_EPOCH,
+ * across boots).
  */
 #define POX_LABEL_SESSION_ID    (-65537)
 #define POX_LABEL_CALLER_ID     (-65538)
 #define POX_LABEL_BOOT_EPOCH    (-65539)
-/* Verifier transcript signature (64B raw r||s), embedded whenever
- * session auth is enabled: makes the token self-contained
- * authorization evidence for third parties. */
 #define POX_LABEL_SESS_SIG      (-65540)
-/* Verifier-assigned monotonic request sequence (POX_SEQ_AUTH builds):
- * lets an auditor order executions within a boot and, with the boot
- * epoch, across boots. */
 #define POX_LABEL_SEQ           (-65541)
 
 #define MAX_SW_COMPONENTS       16
@@ -56,61 +54,48 @@ typedef struct {
 } SwComponent;
 
 typedef struct {
-    /* Nonce */
     uint8_t  nonce[64];
     uint32_t nonce_len;
 
-    /* Instance ID */
     uint8_t  instance_id[33];
     uint32_t instance_id_len;
 
-    /* Implementation ID */
     uint8_t  implementation_id[32];
     uint32_t implementation_id_len;
 
-    /* Security lifecycle */
     uint32_t security_lifecycle;
 
-    /* Profile definition */
     bool     has_profile;
     char     profile[64];
 
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
-    /* Boot seed (PSA_IOT_1 / PSA_2_0_0 only) */
     bool     has_boot_seed;
     uint8_t  boot_seed[32];
     uint32_t boot_seed_len;
 
-    /* Client ID */
     bool     has_client_id;
     int32_t  client_id;
 
-    /* Certification reference (optional) */
     bool     has_cert_ref;
     char     cert_ref[64];
 #endif
 
 #if ATTEST_TOKEN_PROFILE_ARM_CCA
-    /* Platform config (CCA only) */
     bool     has_platform_config;
     uint8_t  platform_config[64];
     uint32_t platform_config_len;
 
-    /* Platform hash algo ID (CCA only) */
     bool     has_hash_algo_id;
     char     hash_algo_id[32];
 #endif
 
-    /* Verification service (optional, all profiles) */
     bool     has_verif_service;
     char     verif_service[128];
 
-    /* SW components */
     bool        has_sw;
     SwComponent sw[MAX_SW_COMPONENTS];
     size_t      sw_count;
 
-    /* No-SW-components fallback */
     bool    has_no_sw_components;
     int32_t no_sw_components_val;
 } IATClaims;

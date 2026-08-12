@@ -139,23 +139,44 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     }
 
     int exec_result = 0;
+    struct ns_exec_snapshot snap = { 0 };
     if (faddr != 0) {
         if (input_len > 0 && input != NULL && output != NULL) {
             exec_result = ns_execute(faddr, input, input_len,
-                                     output, output_len);
+                                     output, output_len, &snap);
         } else {
             exec_result = ns_execute_void(faddr);
         }
         POX_LOG_INF("[PoX] ns_execute return code: %d\n", exec_result);
+
+        /* Nothing ran - a token here would attest an execution that
+         * never happened. */
+        if (exec_result == POX_EXEC_ERR_BAD_OUTPUT) {
+            return PSA_ERROR_INVALID_ARGUMENT;
+        }
     }
 
-    int exec_output = (output != NULL && output_len != NULL && *output_len > 0)
-                      ? (int)output[0]
-                      : exec_result;
+    /* Attest the Secure snapshot, never the caller's buffer (see
+     * struct ns_exec_snapshot): the whole captured output where there
+     * is one, the call's return code as a single byte otherwise (the
+     * void-call behaviour). */
+    uint8_t  exec_fallback = (uint8_t)exec_result;
+    const uint8_t *exec_output;
+    size_t         exec_output_len;
 
-    POX_LOG_INF("[PoX] Execution value: 0x%x (%d)\n", exec_output, exec_output);
+    if (snap.valid && snap.out_len > 0u) {
+        exec_output     = snap.out;
+        exec_output_len = snap.out_len;
+    } else {
+        exec_output     = &exec_fallback;
+        exec_output_len = 1u;
+    }
 
-    status = encode_pox_claims(&claims, faddr, exec_output, sess,
+    POX_LOG_INF("[PoX] Execution value: %u byte(s), first 0x%x\n",
+                (unsigned int)exec_output_len, (unsigned int)exec_output[0]);
+
+    status = encode_pox_claims(&claims, faddr, exec_output, exec_output_len,
+                               sess,
                                cbor_scratch, sizeof(cbor_scratch), &cbor_len);
     if (status != PSA_SUCCESS) {
         POX_LOG_INF("[PoX] ERROR: encode_pox_claims failed (%d)\n",

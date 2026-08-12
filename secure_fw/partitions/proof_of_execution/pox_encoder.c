@@ -16,13 +16,21 @@
 
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
-                               int              exec_output,
+                               const uint8_t   *exec_output,
+                               size_t           exec_output_len,
                                const pox_session_ctx_t *sess,
                                uint8_t         *scratch,
                                size_t           scratch_sz,
                                size_t          *encoded_len)
 {
     if (!iat || !scratch || !encoded_len) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    /* Bound the claim here rather than trusting the caller's size_t:
+     * a longer value silently changes what verifiers must parse. */
+    if (!exec_output || exec_output_len == 0u ||
+        exec_output_len > POX_EXEC_OUTPUT_MAX) {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -45,11 +53,11 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     /* PoX extension claims — first, matching attest_pox_create_token() */
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_POX_FADDR, (uint64_t)faddr);
 
-    /* 1-byte bytestring, matching attest_add_execution_value() which uses
-     * attest_token_encode_add_bstr(). */
-    uint8_t out_byte = (uint8_t)exec_output;
+    /* Byte string, matching attest_add_execution_value() on the
+     * attestation-partition path. Signing the full value rather than
+     * its first byte is what makes the claim an integrity check. */
     QCBOREncode_AddBytesToMapN(&ec, IAT_POX_OUT,
-                               (UsefulBufC){ &out_byte, sizeof(out_byte) });
+                               (UsefulBufC){ exec_output, exec_output_len });
 
     if (iat->nonce_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_NONCE,
@@ -86,7 +94,6 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     /* Standard EAT claims — same order as claim_query_funcs[] */
 
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
-    /* Boot seed (PSA_IOT_1 / PSA_2_0_0 first in claim_query_funcs) */
     if (iat->has_boot_seed && iat->boot_seed_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_BOOT_SEED,
             (UsefulBufC){ iat->boot_seed, iat->boot_seed_len });
@@ -114,7 +121,6 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     }
 #endif
 
-    /* Security lifecycle */
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_SECURITY_LIFECYCLE,
                                 (uint64_t)iat->security_lifecycle);
 
@@ -161,20 +167,17 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
                                     (uint64_t)iat->no_sw_components_val);
     }
 
-    /* Profile definition */
     if (iat->has_profile && iat->profile[0] != '\0') {
         QCBOREncode_AddTextToMapN(&ec, IAT_PROFILE_DEFINITION,
             (UsefulBufC){ iat->profile, strlen(iat->profile) });
     }
 
-    /* Verification service (optional, all profiles) */
     if (iat->has_verif_service && iat->verif_service[0] != '\0') {
         QCBOREncode_AddTextToMapN(&ec, IAT_VERIFICATION_SERVICE,
             (UsefulBufC){ iat->verif_service, strlen(iat->verif_service) });
     }
 
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
-    /* Certification reference (optional) */
     if (iat->has_cert_ref && iat->cert_ref[0] != '\0') {
         QCBOREncode_AddTextToMapN(&ec, IAT_CERTIFICATION_REFERENCE,
             (UsefulBufC){ iat->cert_ref, strlen(iat->cert_ref) });
@@ -182,13 +185,11 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 #endif
 
 #if ATTEST_TOKEN_PROFILE_ARM_CCA
-    /* Platform hash algo ID (CCA only) */
     if (iat->has_hash_algo_id && iat->hash_algo_id[0] != '\0') {
         QCBOREncode_AddTextToMapN(&ec, IAT_PLATFORM_HASH_ALGO_ID,
             (UsefulBufC){ iat->hash_algo_id, strlen(iat->hash_algo_id) });
     }
 
-    /* Platform config (CCA only) */
     if (iat->has_platform_config && iat->platform_config_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_PLATFORM_CONFIG,
             (UsefulBufC){ iat->platform_config, iat->platform_config_len });

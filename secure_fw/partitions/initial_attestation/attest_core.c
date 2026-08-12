@@ -4,6 +4,7 @@
 #include "psa/client.h"
 #include "attest.h"
 #include "attest_boot_data.h"
+#include "attest_execute.h"   /* ns_execute(), struct ns_exec_snapshot */
 #include "attest_key.h"
 #include "attest_token.h"
 #include "config_tfm.h"
@@ -514,23 +515,22 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
  */
 static enum psa_attest_err_t
 attest_add_execution_value(struct attest_token_encode_ctx *token_ctx,
-                           const uint8_t *execution_value)
+                           const uint8_t *execution_value,
+                           size_t         execution_value_len)
 {
-    uint8_t buf[1];
     struct q_useful_buf_c claim_value;
 
-    if (execution_value == NULL) {
+    if (execution_value == NULL || execution_value_len == 0u) {
         return PSA_ATTEST_ERR_INVALID_INPUT;
     }
 
-    /* copy the execution byte so the CBOR encoder sees the value now */
-    /* print execution value (hex and decimal) */
-    POX_LOG_INF("[Secure] INFO: Execution value: 0x%x (%u)\n",
-               (unsigned int)*execution_value, (unsigned int)*execution_value);
-    buf[0] = *execution_value;
-    
-    claim_value.ptr = buf;
-    claim_value.len = sizeof(buf);
+    POX_LOG_INF("[Secure] INFO: Execution value: %u byte(s), first 0x%x\n",
+               (unsigned int)execution_value_len,
+               (unsigned int)execution_value[0]);
+
+    /* Secure snapshot, outlives this call: reference it directly. */
+    claim_value.ptr = execution_value;
+    claim_value.len = execution_value_len;
 
     attest_token_encode_add_bstr(token_ctx,
                                  IAT_POX_OUT,
@@ -790,7 +790,7 @@ attest_pox_create_token(uintptr_t faddr,
                  const uint8_t *input,
                  const uint32_t input_len,
                  uint8_t *output,
-                 uint32_t *output_len,
+                 uint32_t output_len,
                  struct q_useful_buf_c *challenge,
                  const attest_session_ctx_t *sess,
                  struct q_useful_buf *token,
@@ -802,7 +802,9 @@ attest_pox_create_token(uintptr_t faddr,
     int32_t key_select = 0;
     int i;
     int32_t cose_algorithm_id;
-    int execute_value;
+    /* Initialised: when input_len == 0 the attested function is never
+     * called, and this is still the fallback the token attests. */
+    int execute_value = 0;
 
     attest_err = attest_get_t_cose_algorithm(&cose_algorithm_id);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
@@ -823,14 +825,50 @@ attest_pox_create_token(uintptr_t faddr,
         attest_err = error_mapping_to_psa_attest_err_t(token_err);
         goto error;
     }
+    struct ns_exec_snapshot exec_snap = { 0 };
     if (input_len != 0)
     {
-        execute_value = ns_execute(faddr, input, input_len, output, output_len);
+        /* Secure storage the non-secure world cannot write; passing
+         * the caller's length through as a pointer would hand the
+         * secure world an NS-controlled value to dereference. */
+        uint32_t exec_out_len = output_len;
+
+        execute_value = ns_execute(faddr, input, input_len, output,
+                                   &exec_out_len, &exec_snap);
+
+        /* Nothing ran - a token here would attest an execution that
+         * never happened. */
+        if (execute_value == ATTEST_EXEC_ERR_BAD_OUTPUT) {
+            attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
+            goto error;
+        }
     }
     attest_err = attest_add_faddr(&attest_token_ctx,
                                   &faddr);
-    attest_err = attest_add_execution_value(&attest_token_ctx,
-                                            output);
+    if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+    {
+        goto error;
+    }
+    /* Encode from the Secure snapshot: the NS buffer is attacker-
+     * writable and the claim is encoded at least one call later.
+     * Whole captured output where there is one, the call's return code
+     * as a single byte otherwise (the void-call behaviour). */
+    {
+        uint8_t        exec_fallback = (uint8_t)execute_value;
+        const uint8_t *exec_val      = &exec_fallback;
+        size_t         exec_val_len  = 1u;
+
+        if (exec_snap.valid && exec_snap.out_len > 0u) {
+            exec_val     = exec_snap.out;
+            exec_val_len = exec_snap.out_len;
+        }
+        attest_err = attest_add_execution_value(&attest_token_ctx,
+                                                exec_val, exec_val_len);
+    }
+    if (attest_err != PSA_ATTEST_ERR_SUCCESS)
+    {
+        goto error;
+    }
     attest_err = attest_add_nonce_claim(&attest_token_ctx,
                                         challenge);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
@@ -901,7 +939,7 @@ error:
 
 psa_status_t
 attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
-                   uint8_t *output, uint32_t *output_len,
+                   uint8_t *output, uint32_t output_len,
                    const void *challenge_buf, size_t challenge_size,
                    const attest_session_ctx_t *sess,
                    void *token_buf, size_t token_buf_size,

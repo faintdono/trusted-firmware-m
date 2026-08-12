@@ -53,7 +53,7 @@ extern "C" {
  * \param[in]  input_len        Length of \p input in bytes.
  * \param[out] output           Output buffer for the NS function result
  *                              (may be NULL if no output is expected).
- * \param[in]  output_len       Capacity of \p output in bytes.
+ * \param[in]  output_len       Length of the NS function result.
  * \param[in]  challenge        Challenge nonce bytes for the IAT request
  *                              (the verifier-issued session nonce).
  * \param[in]  challenge_size   Length of \p challenge (32, 48, or 64 bytes).

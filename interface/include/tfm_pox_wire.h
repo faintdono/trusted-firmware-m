@@ -117,7 +117,8 @@ typedef struct {
     uint32_t       input_len;     /* bytes */
 
     uint32_t       output;        /* NS address; may be 0 if output_len == 0 */
-    uint32_t       output_len;    /* bytes (capacity) */
+    uint32_t       output_len;    /* result length; signed
+                                   * as-is (capped POX_EXEC_OUTPUT_MAX) */
 
     /* Session authentication (verifier-supplied; the NS app is only a
      * relay and cannot forge these). Both NULL/0, or both present. */

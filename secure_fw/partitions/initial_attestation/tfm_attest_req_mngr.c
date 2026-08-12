@@ -167,8 +167,8 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
                                    PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    if ((view.input_len > 0 && view.input == NULL) ||
-        (view.output_len > 0 && view.output == NULL) ||
+    if ((view.input_len > 0 && view.input == 0u) ||
+        (view.output_len > 0 && view.output == 0u) ||
         (view.challenge_len > 0 && view.challenge == NULL)) {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
@@ -212,10 +212,13 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
 #endif
     };
 
+    /* input/output are NON-SECURE addresses from the wire request, so
+     * the casts are deliberate and explicit - a bug hid behind implicit
+     * ones here. output_len is a LENGTH, passed by value. */
     status = attest_proof_of_execution(view.function_addr_le32,
-                               view.input,
+                               (const uint8_t *)(uintptr_t)view.input,
                                view.input_len,
-                               view.output,
+                               (uint8_t *)(uintptr_t)view.output,
                                view.output_len,
                                view.challenge,
                                view.challenge_len,

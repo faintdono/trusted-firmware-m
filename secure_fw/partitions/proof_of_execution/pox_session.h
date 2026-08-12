@@ -28,10 +28,8 @@
 #  define POX_SEQ_AUTH 0
 #endif
 
-/* Monotonic sequence binding (transcript v3) replaces the bounded
- * nonce ring with an O(1) high-water mark, so there is no eviction
- * window. It defends in-boot replay only; cross-boot replay is the
- * boot epoch's job, which every session-auth build carries. */
+/* Seq covers in-boot replay only; cross-boot replay is the boot
+ * epoch's job, which every session-auth build carries. */
 #if POX_SEQ_AUTH && !POX_SESSION_AUTH
 #  error "POX_SEQ_AUTH requires POX_SESSION_AUTH."
 #endif
@@ -41,10 +39,8 @@
  *   v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
  *       epoch_le32 - the boot epoch binds the authorization to the
  *       current boot; a signature from epoch N fails after reboot.
- *       (Session auth without the epoch no longer exists: it left
- *       reboot-replay open, so the two were merged.)
  *   v3 (POX_SEQ_AUTH): v2 | seq_le32 - adds the monotonic counter
- *       that retires the nonce ring.
+ *       that replaces the nonce ring.
  */
 #if POX_SEQ_AUTH
 #  define POX_TRANSCRIPT_VERSION (3u)
@@ -75,19 +71,17 @@ typedef struct {
 } pox_session_ctx_t;
 
 /**
- * @brief One-shot init from pox_init(), after the signing key is
- *        registered: imports the verifier PUBLIC key as a VOLATILE PSA
- *        key, then reads/increments/writes back the boot epoch counter
- *        (the partition's only ITS use, one small write per boot).
+ * @brief One-shot init from pox_init(): imports the verifier PUBLIC
+ *        key as a VOLATILE PSA key and bumps the boot epoch counter
+ *        (the partition's only ITS write).
  */
 psa_status_t pox_session_init(void);
 
 /**
- * @brief Enforcement, in order: ECDSA-P256-SHA256 verify over the
- *        transcript, then anti-replay (seq high-water mark, or the
- *        bounded nonce ring). Either failure ->
- *        PSA_ERROR_NOT_PERMITTED with no state change; anti-replay
- *        state is updated only once the signature verified.
+ * @brief Verify the transcript (ECDSA-P256-SHA256), then anti-replay
+ *        (seq high-water mark or nonce ring). Either failure ->
+ *        PSA_ERROR_NOT_PERMITTED, no state change; replay state moves
+ *        only after the signature verified.
  */
 psa_status_t pox_session_authenticate(const sec_pox_view_t *view);
 

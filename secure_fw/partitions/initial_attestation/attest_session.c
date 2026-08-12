@@ -315,7 +315,6 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
         }
 
         if (!reused) {
-            /* Record only after the signature verified. */
             memcpy(nonce_ring[nonce_ring_next], digest,
                    ATTEST_NONCE_DIGEST_LEN);
             nonce_ring_next = (nonce_ring_next + 1u) % POX_NONCE_HISTORY;

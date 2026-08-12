@@ -116,9 +116,8 @@ initial_attest_get_token_size(size_t challenge_size, size_t *token_size);
  * \param[in]     faddr         Pointer to function address to execute
  * \param[in]     challenge_buf Pointer to challenge buffer
  * \param[in]     challenge_size Size of challenge
- * \param[in]     sess          Validated session context for the session
- *                              claims (may be NULL when session auth is
- *                              disabled)
+ * \param[in]     sess          Validated session context; NULL only when
+ *                              session auth is disabled
  * \param[out]    token_buf     Pointer to token buffer
  * \param[in]     token_buf_size Size of token buffer
  * \param[out]    token_size    Pointer to store actual token size

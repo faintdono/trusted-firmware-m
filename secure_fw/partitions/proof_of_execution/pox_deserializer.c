@@ -50,7 +50,6 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
         tlvs_end = len - 4;
     }
 
-    /* Fill meta */
     out->version    = ver;
     out->flags      = flags;
     out->tlv_count  = tlv_cnt;
@@ -128,7 +127,7 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
             break;
 
         default:
-            /* skip unknown types */
+            /* Unknown TLV types are skipped, not an error. */
             break;
         }
 

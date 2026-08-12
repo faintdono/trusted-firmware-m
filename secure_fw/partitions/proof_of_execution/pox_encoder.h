@@ -8,15 +8,13 @@
 #include <stddef.h>
 
 /**
- * @brief Encode the PoX CBOR payload: decoded IAT claims plus the
- *        extension claims (faddr, exec_output) and the session-auth
- *        claims.
+ * @brief Encode the PoX CBOR payload: IAT claims plus the PoX
+ *        extension (faddr, exec_output) and session-auth claims.
  *
- * @param[in] sess  Validated session context; NULL emits no session
- *                  claims.
- * @param[in] exec_output      Attested output bytes, from a
- *                             struct ns_exec_snapshot.
- * @param[in] exec_output_len  1..POX_EXEC_OUTPUT_MAX.
+ * @param[in] sess             Validated session context; NULL emits
+ *                             no session claims
+ * @param[in] exec_output      Attested bytes, from a ns_exec_snapshot
+ * @param[in] exec_output_len  1..POX_EXEC_OUTPUT_MAX
  * @return PSA_SUCCESS, PSA_ERROR_INVALID_ARGUMENT or
  *         PSA_ERROR_BUFFER_TOO_SMALL
  */

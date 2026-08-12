@@ -50,12 +50,10 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
      *        platform_config, verification_service
      */
 
-    /* PoX extension claims — first, matching attest_pox_create_token() */
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_POX_FADDR, (uint64_t)faddr);
 
-    /* Byte string, matching attest_add_execution_value() on the
-     * attestation-partition path. Signing the full value rather than
-     * its first byte is what makes the claim an integrity check. */
+    /* Byte string of the whole attested value, matching
+     * attest_add_execution_value() on the attestation-partition path. */
     QCBOREncode_AddBytesToMapN(&ec, IAT_POX_OUT,
                                (UsefulBufC){ exec_output, exec_output_len });
 
@@ -73,9 +71,8 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
         QCBOREncode_AddInt64ToMapN(&ec, POX_LABEL_CALLER_ID,
                                    (int64_t)sess->caller_id);
 #if POX_SESSION_AUTH
-        /* Verifier authorization signature: embedded whenever session
-         * auth is on (i.e. after it verified), making the token
-         * self-contained evidence for third-party auditors. */
+        /* Verifier authorization signature, emitted only after it
+         * verified: makes the token self-contained evidence. */
         if (sess->sess_sig != NULL && sess->sess_sig_len > 0) {
             QCBOREncode_AddBytesToMapN(&ec, POX_LABEL_SESS_SIG,
                 (UsefulBufC){ sess->sess_sig, sess->sess_sig_len });
@@ -91,8 +88,6 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 #endif
     }
 
-    /* Standard EAT claims — same order as claim_query_funcs[] */
-
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
     if (iat->has_boot_seed && iat->boot_seed_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_BOOT_SEED,
@@ -100,13 +95,11 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     }
 #endif
 
-    /* Instance ID */
     if (iat->instance_id_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_INSTANCE_ID,
             (UsefulBufC){ iat->instance_id, iat->instance_id_len });
     }
 
-    /* Implementation ID */
     if (iat->implementation_id_len > 0) {
         QCBOREncode_AddBytesToMapN(&ec, IAT_IMPLEMENTATION_ID,
             (UsefulBufC){ iat->implementation_id,
@@ -114,7 +107,6 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     }
 
 #if ATTEST_TOKEN_PROFILE_PSA_IOT_1 || ATTEST_TOKEN_PROFILE_PSA_2_0_0
-    /* Caller / Client ID */
     if (iat->has_client_id) {
         QCBOREncode_AddInt64ToMapN(&ec, IAT_CLIENT_ID,
                                    (int64_t)iat->client_id);
@@ -124,7 +116,6 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_SECURITY_LIFECYCLE,
                                 (uint64_t)iat->security_lifecycle);
 
-    /* SW components */
     if (iat->has_sw && iat->sw_count > 0) {
         QCBOREncode_OpenArrayInMapN(&ec, IAT_SW_COMPONENTS);
         for (size_t i = 0; i < iat->sw_count; i++) {

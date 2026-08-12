@@ -105,8 +105,6 @@ static void parse_sw_component(QCBORDecodeContext *dc, SwComponent *sw)
     QCBORDecode_ExitMap(dc);
 }
 
-/* Public API */
-
 psa_status_t decode_iat_to_claims(const uint8_t *iat_token_buf,
                                    size_t         iat_token_sz,
                                    IATClaims     *claims)

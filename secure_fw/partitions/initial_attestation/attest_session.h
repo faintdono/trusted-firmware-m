@@ -58,8 +58,7 @@
 /*
  * Session transcript version. Must stay identical to pox_session.h.
  *   v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
- *       epoch_le32 (auth without the epoch no longer exists: it left
- *       reboot-replay open, so the two were merged)
+ *       epoch_le32
  *   v3 (POX_SEQ_AUTH): v2 | seq_le32
  */
 #if POX_SEQ_AUTH
@@ -104,18 +103,16 @@ typedef struct {
 } attest_session_ctx_t;
 
 /**
- * @brief One-shot init, call from attest_partition_init():
- *        imports the verifier PUBLIC key as a VOLATILE PSA key. On
- *        failure the PoX path fails closed (every request rejected);
- *        IAT services are unaffected.
+ * @brief One-shot init from attest_partition_init(): imports the
+ *        verifier PUBLIC key as a VOLATILE PSA key. On failure the
+ *        PoX path fails closed; IAT services are unaffected.
  */
 psa_status_t attest_session_init(void);
 
 /**
- * @brief Enforcement over the deserialized request view:
- *        ECDSA-P256-SHA256 verify over the transcript, then anti-replay
- *        (seq high-water mark, or this partition's own nonce ring).
- *        State is updated only after the signature verifies.
+ * @brief Verify the transcript (ECDSA-P256-SHA256), then anti-replay
+ *        (seq high-water mark or this partition's own nonce ring).
+ *        State moves only after the signature verified.
  */
 psa_status_t attest_session_authenticate(const sec_pox_view_t *view);
 

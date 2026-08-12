@@ -877,10 +877,10 @@ attest_pox_create_token(uintptr_t faddr,
     }
 
     /* Session-authentication claims, mirroring the standalone PoX
-     * partition's encoder (private-use labels).
-     * MUST stay after attest_token_encode_start(): the encode context
-     * is uninitialized before it, and adding claims to it then is a
-     * write through wild pointers (secure BusFault). */
+     * partition's encoder (private-use labels). MUST stay after
+     * attest_token_encode_start(): the encode context is uninitialized
+     * before it, and adding claims then writes through wild pointers
+     * (secure BusFault). */
     if (sess != NULL)
     {
         if (sess->session_id != NULL && sess->session_id_len > 0)
@@ -896,9 +896,8 @@ attest_pox_create_token(uintptr_t faddr,
                                         POX_LABEL_CALLER_ID,
                                         (int64_t)sess->caller_id);
 #if POX_SESSION_AUTH_ATT
-        /* Verifier authorization signature: embedded whenever session
-         * auth is on (i.e. after it verified), making the token
-         * self-contained evidence for third-party auditors. */
+        /* Verifier authorization signature, emitted only after it
+         * verified: makes the token self-contained evidence. */
         if (sess->sess_sig != NULL && sess->sess_sig_len > 0)
         {
             struct q_useful_buf_c ssig;

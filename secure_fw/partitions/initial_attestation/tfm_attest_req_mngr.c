@@ -179,11 +179,10 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    /* ---------------- Phase 1: session authentication ----------------
-     * Same policy as the standalone PoX partition, own instance and
-     * own build flag (POX_SESSION_AUTH_ATT):
-     * rule 1 invalid signature -> reject, end session;
-     * rule 2 reused nonce      -> reject. */
+    /* Session authentication: same policy as the standalone PoX
+     * partition, but its own instance and build flag
+     * (POX_SESSION_AUTH_ATT). Invalid signature or replayed request
+     * -> reject. */
 #if POX_SESSION_AUTH_ATT
     if (view.session_id == NULL || view.sess_sig == NULL) {
         POX_LOG_INF("[Attest][PoX] Missing session credentials: rejecting\n");
@@ -213,8 +212,8 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
     };
 
     /* input/output are NON-SECURE addresses from the wire request, so
-     * the casts are deliberate and explicit - a bug hid behind implicit
-     * ones here. output_len is a LENGTH, passed by value. */
+     * the casts are deliberate and explicit. output_len is a LENGTH,
+     * passed by value. */
     status = attest_proof_of_execution(view.function_addr_le32,
                                (const uint8_t *)(uintptr_t)view.input,
                                view.input_len,

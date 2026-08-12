@@ -10,8 +10,9 @@
 
 #define POX_CBOR_SCRATCH_SIZE   2048
 
-/* Maximum size for an IAT token buffer */
-#define ATT_MAX_TOKEN_SIZE      0x2C0  /* headroom for the embedded sess_sig claim */
+/* IAT token buffer size; sized with headroom for the embedded
+ * sess_sig claim. */
+#define ATT_MAX_TOKEN_SIZE      0x2C0
 
 /* Must stay in [PSA_KEY_ID_USER_MIN, PSA_KEY_ID_USER_MAX] and must not
  * clash with any other key id in the system. */
@@ -25,34 +26,31 @@
 #endif
 
 /**
- * @brief Import the hardcoded PoX signing key into PSA Crypto as a
- *        VOLATILE ECDSA P-256 key pair. Call exactly once from
- *        pox_init(). psa_set_key_id() is ignored for volatile keys, so
- *        the real handle comes from pox_get_signing_key_handle().
+ * @brief Import the hardcoded signing key as a VOLATILE ECDSA P-256
+ *        key pair; call once from pox_init(). The handle comes from
+ *        pox_get_signing_key_handle(), not psa_set_key_id().
  */
 psa_status_t pox_register_signing_key(void);
 
-/** @brief Volatile key handle, or 0 if the key is not imported yet. */
+/** @brief Volatile key handle, 0 if not imported yet. */
 psa_key_id_t pox_get_signing_key_handle(void);
 
 #if POX_ALLOW_RUNTIME_KEY_OVERRIDE
 /**
- * @brief Replace the registered signing key with a caller-supplied
- *        32-byte ECDSA P-256 private scalar (big-endian);
- *        priv_key_len must be exactly 32.
+ * @brief Replace the signing key with a 32-byte ECDSA P-256 private
+ *        scalar (big-endian); priv_key_len must be 32.
  */
 psa_status_t pox_set_signing_key(const uint8_t *priv_key, size_t priv_key_len);
 #endif
 
 /**
- * @brief Full proof-of-execution flow:
- *        get IAT -> decode -> execute NS function -> encode PoX claims -> sign.
+ * @brief Full PoX flow: get IAT, decode, execute, encode, sign.
  *
- * @param output_len      In: capacity of output; out: bytes written by NS fn
- * @param challenge_buf   The authenticated verifier nonce, used as the
- *                        IAT request challenge (32, 48 or 64 bytes)
- * @param sess            Validated session context; may be NULL only
- *                        when session authentication is disabled.
+ * @param output_len      In: output capacity; out: bytes written
+ * @param challenge_buf   Authenticated verifier nonce, reused as the
+ *                        IAT challenge (32, 48 or 64 bytes)
+ * @param sess            Validated session context; NULL only when
+ *                        session auth is disabled
  */
 psa_status_t
 proof_of_execution(uintptr_t faddr,
@@ -64,16 +62,14 @@ proof_of_execution(uintptr_t faddr,
                    size_t *token_size);
 
 /**
- * @brief Create a signed PoX token from an already-obtained IAT token:
- *        decode the IAT, execute the NS function, encode EAT + PoX
- *        claims, sign.
+ * @brief Signed PoX token from an existing IAT: decode, execute,
+ *        encode EAT + PoX claims, sign.
  *
  * @param challenge_buf  Authenticated challenge; the decoded IAT nonce
  *                       must match it byte-for-byte
- * @param report_size    In: capacity of report_buf; out: bytes written
+ * @param report_size    In: report_buf capacity; out: bytes written
  *
- * @retval PSA_ERROR_CORRUPTION_DETECTED  IAT-embedded nonce does not
- *         match the authenticated challenge.
+ * @retval PSA_ERROR_CORRUPTION_DETECTED  nonce mismatch
  */
 psa_status_t
 pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,

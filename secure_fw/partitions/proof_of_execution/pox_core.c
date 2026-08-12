@@ -1,13 +1,7 @@
 /*
  * pox_core.c
  *
- * Proof-of-Execution core logic:
- *  1. Obtain an IAT token from the Initial Attestation service.
- *  2. Decode the IAT token to extract EAT claims.
- *  3. Execute the requested non-secure function via ns_execute().
- *  4. Encode a new CBOR map with the forwarded EAT claims plus the
- *     PoX extension claims (faddr, exec_output).
- *  5. Sign the CBOR map with COSE_Sign1 using the PoX signing key.
+ * Proof-of-Execution core logic; see pox.h for the flow.
  */
 
 #include "pox.h"

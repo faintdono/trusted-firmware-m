@@ -32,7 +32,7 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
         return -1;
     }
 
-    /* Validate the address before running anything. */
+    /* Validate the output buffer before running anything. */
     uint32_t produced = (output_len != NULL) ? *output_len : 0u;
     uint32_t take = (produced < POX_EXEC_OUTPUT_MAX)
                     ? produced : POX_EXEC_OUTPUT_MAX;

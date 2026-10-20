@@ -41,14 +41,18 @@
  *                                        nonce_len | nonce | faddr_le32 |
  *                                        epoch_le32
  *                                    v3: v2 | seq_le32
- *   SEQ  (len == 4, LE)  optional  per-session monotonic request
- *                                  counter (verifier-assigned). Present
- *                                  in v3 (POX_SEQ_AUTH) builds; the
- *                                  device accepts a request only when
- *                                  seq strictly exceeds the highest it
- *                                  has accepted this boot, which
- *                                  replaces the bounded nonce ring with
- *                                  O(1) state and no replay window.
+ *   SEQ  (len == 4, LE)  optional  monotonic request counter
+ *                                  (verifier-assigned). Present in v3
+ *                                  (POX_SEQ_AUTH) builds; the device
+ *                                  accepts a request only when seq
+ *                                  strictly exceeds the highest it has
+ *                                  accepted this boot, which replaces
+ *                                  the bounded nonce ring with O(1)
+ *                                  state and no replay window. The
+ *                                  counter is device-wide, not per
+ *                                  session: all sessions served by a
+ *                                  partition share one high-water
+ *                                  mark, which resets at boot.
  */
 
 #ifndef TFM_POX_WIRE_H
@@ -128,9 +132,9 @@ typedef struct {
                                      NULL if none */
     uint32_t       sess_sig_len;  /* must be POX_SESS_SIG_LEN if present */
 
-    /* Per-session monotonic request counter (verifier-assigned).
-     * Emitted as the SEQ TLV iff has_seq; bound into the v3 transcript
-     * signed by the verifier. */
+    /* Monotonic request counter (verifier-assigned), shared by all
+     * sessions this boot. Emitted as the SEQ TLV iff has_seq; bound
+     * into the v3 transcript signed by the verifier. */
     uint32_t       seq;
     bool           has_seq;
 
@@ -170,7 +174,7 @@ typedef struct {
     const uint8_t *sess_sig;
     uint32_t       sess_sig_len;
 
-    /* Per-session monotonic request counter; valid iff has_seq. */
+    /* Device-wide monotonic request counter; valid iff has_seq. */
     uint32_t       seq;
     bool           has_seq;
 

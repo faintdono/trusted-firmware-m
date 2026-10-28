@@ -262,6 +262,26 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(
                                            region_cfg.region_limit);
 #endif
 
+#ifdef TFM_PARTITION_PROOF_OF_EXECUTION
+    /* NS Code, read-only for unprivileged. The PoX partition (an ARoT,
+     * unprivileged at level 2) hashes the attested function's code in
+     * NS flash before running it; without this region that read
+     * MemManage-faults. Execute-never applies to Secure state only: F
+     * itself runs in Non-secure state under the NS MPU. */g
+    region_cfg.region_nr = n_configured_regions;
+    region_cfg.region_base = NS_CODE_START;
+    region_cfg.region_limit = NS_CODE_LIMIT;
+    region_cfg.region_attridx = MPU_ARMV8M_MAIR_ATTR_CODE_IDX;
+    region_cfg.attr_access = MPU_ARMV8M_AP_RO_PRIV_UNPRIV;
+    region_cfg.attr_sh = MPU_ARMV8M_SH_NONE;
+    region_cfg.attr_exec = MPU_ARMV8M_XN_EXEC_NEVER;
+    FIH_CALL(mpu_armv8m_region_enable, fih_rc, &dev_mpu_s, &region_cfg);
+    if (fih_not_eq(fih_rc, fih_int_encode(MPU_ARMV8M_OK))) {
+        FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
+    }
+    n_configured_regions++;
+#endif /* TFM_PARTITION_PROOF_OF_EXECUTION */
+
 #ifdef CONFIG_TFM_PARTITION_META
     /* TFM partition metadata pointer region */
     region_cfg.region_nr = n_configured_regions;

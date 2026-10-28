@@ -3,6 +3,8 @@
 #include "tfm_sp_log.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "psa/crypto.h"
+#include "tfm_pox_wire.h"   /* POX_FUNC_LEN_MAX, POX_INPUT_HASH_MAX */
 
 typedef int (*ns_function_ptr_with_args_t)(const uint8_t *input, uint32_t input_len, uint8_t *output, uint32_t *output_len) __attribute__((cmse_nonsecure_call));
 typedef int (*ns_function_ptr_void_t)(void) __attribute__((cmse_nonsecure_call));
@@ -48,5 +50,32 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
                uint8_t *output, uint32_t *output_len,
                struct ns_exec_snapshot *snap);
 int ns_execute_void(uintptr_t faddr);
+
+
+/* SHA-256 digest length of the pre-execution measurements. */
+#define POX_MEASURE_HASH_LEN 32u
+
+/**
+ * @brief Secure-memory hashes of F's code and input, taken right before
+ *        F runs. F can rewrite both while it runs; these record the
+ *        state it started from.
+ */
+struct ns_exec_measurement {
+    uint8_t func_hash[POX_MEASURE_HASH_LEN];
+    uint8_t input_hash[POX_MEASURE_HASH_LEN];
+};
+
+/**
+ * @brief SHA-256 of [faddr & ~1, +func_len) and of [input, +input_len).
+ *
+ * Both ranges must be wholly Non-Secure: hashing Secure memory would
+ * leak it into the token. An empty input hashes to SHA-256(""). Call
+ * immediately before ns_execute*().
+ *
+ * @retval PSA_ERROR_INVALID_ARGUMENT  bad range or length
+ */
+psa_status_t pox_ns_measure(uintptr_t faddr, uint32_t func_len,
+                         const uint8_t *input, uint32_t input_len,
+                         struct ns_exec_measurement *meas);
 
 #endif // POX_EXECUTE_H

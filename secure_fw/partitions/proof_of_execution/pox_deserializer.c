@@ -58,7 +58,7 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
 
     size_t off = hdr_len;
     bool saw_ch=false, saw_fn=false, saw_in=false, saw_out=false;
-    bool saw_sid=false, saw_sig=false;
+    bool saw_sid=false, saw_sig=false, saw_flen=false;
 
     for (uint16_t i = 0; i < tlv_cnt; ++i) {
         if (off > tlvs_end || (tlvs_end - off) < 8) return SER_EMALFORMED;
@@ -87,6 +87,15 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
             if (l != 4) return SER_EMALFORMED;
             out->function_addr_le32 = (uintptr_t)le32_load(val);
             saw_fn = true;
+            break;
+
+        case POX_TLV_FUNC_LEN:
+            if (saw_flen) return SER_EMALFORMED;
+            if (l != 4) return SER_EMALFORMED;
+            out->function_len = le32_load(val);
+            if (out->function_len == 0u ||
+                out->function_len > POX_FUNC_LEN_MAX) return SER_EMALFORMED;
+            saw_flen = true;
             break;
 
         case POX_TLV_INPUT_ADDR:
@@ -135,12 +144,12 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
     }
 
     /* Structural checks:
-       - challenge + function required
+       - challenge + function address + function length required
        - input addr required iff input_len_dup  != 0
        - output addr required iff output_len_dup != 0
        - forbid output addr with zero capacity (prevents ambiguity)
     */
-    if (!saw_ch || !saw_fn) return SER_EMALFORMED;
+    if (!saw_ch || !saw_fn || !saw_flen) return SER_EMALFORMED;
     if (out->input_len  != 0u && !saw_in)  return SER_EMALFORMED;
     if (out->output_len != 0u && !saw_out) return SER_EMALFORMED;
     if (saw_out && out->output_len == 0u)  return SER_EMALFORMED;

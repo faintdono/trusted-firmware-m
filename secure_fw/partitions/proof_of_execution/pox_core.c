@@ -68,7 +68,7 @@ static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
 }
 
 psa_status_t
-proof_of_execution(uintptr_t faddr,
+proof_of_execution(uintptr_t faddr, uint32_t func_len,
                    const uint8_t *input,  const uint32_t input_len,
                    uint8_t       *output, uint32_t       *output_len,
                    uint8_t *challenge_buf, size_t challenge_size,
@@ -92,14 +92,14 @@ proof_of_execution(uintptr_t faddr,
 
     *token_size = token_buf_size;
     return pox_create_token(iat_token_buf, iat_token_size,
-                            faddr, input, input_len,
+                            faddr, func_len, input, input_len,
                             output, output_len,
                             challenge_buf, challenge_size, sess,
                             (uint8_t *)token_buf, token_size);
 }
 
 psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
-                               uintptr_t faddr,
+                               uintptr_t faddr, uint32_t func_len,
                                const uint8_t *input,  uint32_t input_len,
                                uint8_t       *output, uint32_t *output_len,
                                const uint8_t *challenge_buf,
@@ -130,6 +130,17 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
         POX_LOG_INF("[PoX] ERROR: IAT nonce does not match the "
                    "authenticated challenge\n");
         return PSA_ERROR_CORRUPTION_DETECTED;
+    }
+
+    /* Measure F's code and input in Secure state, right before F
+     * runs: F can rewrite both, and the token must show what it
+     * started from. */
+    struct ns_exec_measurement meas;
+    status = pox_ns_measure(faddr, func_len, input, input_len, &meas);
+    if (status != PSA_SUCCESS) {
+        POX_LOG_INF("[PoX] ERROR: pre-execution measurement failed (%d)\n",
+                   (int)status);
+        return status;
     }
 
     int exec_result = 0;
@@ -169,7 +180,8 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     POX_LOG_INF("[PoX] Execution value: %u byte(s), first 0x%x\n",
                 (unsigned int)exec_output_len, (unsigned int)exec_output[0]);
 
-    status = encode_pox_claims(&claims, faddr, exec_output, exec_output_len,
+    status = encode_pox_claims(&claims, faddr, &meas,
+                               exec_output, exec_output_len,
                                sess,
                                cbor_scratch, sizeof(cbor_scratch), &cbor_len);
     if (status != PSA_SUCCESS) {

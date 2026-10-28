@@ -126,7 +126,8 @@ initial_attest_get_token_size(size_t challenge_size, size_t *token_size);
  */
 #ifdef ATTEST_POX
 psa_status_t
-attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
+attest_proof_of_execution(uintptr_t faddr, uint32_t func_len,
+                   const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t output_len,
                    const void *challenge_buf, size_t challenge_size,
                    const attest_session_ctx_t *sess,

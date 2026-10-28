@@ -28,6 +28,10 @@
  * Mandatory TLVs:
  *   CHALLENGE (len in [32..64])
  *   FUNC_ADDR (len == 4, LE; selector/ID, NOT an executable pointer)
+ *   FUNC_LEN  (len == 4, LE; size of F's code in bytes, from the
+ *             verifier's ELF symbol table. Not signed: the secure side
+ *             hashes [faddr & ~1, +func_len) into the token, so a wrong
+ *             length only yields a hash the verifier rejects.)
  *   INPUT_ADDR  (len == 4)   iff input_len_dup  != 0
  *   OUTPUT_ADDR (len == 4)   iff output_len_dup != 0
  *
@@ -86,7 +90,8 @@ typedef enum {
     POX_TLV_OUTPUT_ADDR = 0x0004,
     POX_TLV_SESSION_ID  = 0x0005,
     POX_TLV_SESS_SIG    = 0x0006,
-    POX_TLV_SEQ         = 0x0007
+    POX_TLV_SEQ         = 0x0007,
+    POX_TLV_FUNC_LEN    = 0x0008
 } pox_tlv_type_t;
 
 #define POX_CHALLENGE_LEN_MIN        (32u)
@@ -95,6 +100,11 @@ typedef enum {
 #define POX_SESSION_ID_MIN           (8u)
 #define POX_SESSION_ID_MAX           (32u)
 #define POX_SESS_SIG_LEN             (64u)
+
+/* Upper bounds on what the secure side hashes before running F; the
+ * hash runs with NS interrupts masked, so it must stay bounded. */
+#define POX_FUNC_LEN_MAX             (0x10000u)
+#define POX_INPUT_HASH_MAX           (0x10000u)
 
 /* --------------------------- Status codes ------------------------------- */
 
@@ -116,6 +126,7 @@ typedef struct {
     uint32_t       challenge_len; /* 32..64 */
 
     uint32_t       function_addr; /* 32-bit on wire (selector/ID) */
+    uint32_t       function_len;  /* F's code size; 1..POX_FUNC_LEN_MAX */
 
     uint32_t       input;         /* NS address; may be 0 if input_len == 0 */
     uint32_t       input_len;     /* bytes */
@@ -161,6 +172,7 @@ typedef struct {
     uint32_t       challenge_len;
 
     uintptr_t      function_addr_le32;  /* selector/ID */
+    uint32_t       function_len;        /* F's code size (FUNC_LEN) */
     uintptr_t      input;               /* NS address (0 if input_len == 0) */
     uint32_t       input_len;           /* from header (input_len_dup) */
 

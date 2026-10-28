@@ -48,6 +48,8 @@ extern "C" {
  * format, NOT ASN.1/DER).
  *
  * \param[in]  faddr            Address of the NS function to execute.
+ * \param[in]  func_len         Size of the function's code in bytes; the
+ *                              secure side hashes it before running it.
  * \param[in]  input            Input buffer passed to the NS function
  *                              (may be NULL if \p input_len is 0).
  * \param[in]  input_len        Length of \p input in bytes.
@@ -81,6 +83,7 @@ extern "C" {
  */
 psa_status_t
 psa_pox_get_token(uintptr_t      faddr,
+                  size_t         func_len,
                   const uint8_t *input,
                   size_t         input_len,
                   uint8_t       *output,

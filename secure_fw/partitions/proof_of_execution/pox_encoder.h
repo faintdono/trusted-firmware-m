@@ -9,7 +9,8 @@
 
 /**
  * @brief Encode the PoX CBOR payload: IAT claims plus the PoX
- *        extension (faddr, exec_output) and session-auth claims.
+ *        extension (faddr, func/input hashes, exec_output) and
+ *        session-auth claims.
  *
  * @param[in] sess             Validated session context; NULL emits
  *                             no session claims
@@ -20,6 +21,7 @@
  */
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
+                               const struct ns_exec_measurement *meas,
                                const uint8_t   *exec_output,
                                size_t           exec_output_len,
                                const pox_session_ctx_t *sess,

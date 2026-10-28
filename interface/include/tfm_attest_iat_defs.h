@@ -32,6 +32,10 @@ extern "C" {
 #define IAT_POX_IA                         (IAT_ARM_RANGE_BASE - 11)
 #define IAT_POX_FADDR                      (IAT_ARM_RANGE_BASE - 12)
 #define IAT_POX_OUT                        (IAT_ARM_RANGE_BASE - 13)
+/* SHA-256 of F's code [faddr & ~1, +func_len) and of its input, both
+ * taken in Secure state just before F runs. */
+#define IAT_POX_FUNC_HASH                  (IAT_ARM_RANGE_BASE - 14)
+#define IAT_POX_INPUT_HASH                 (IAT_ARM_RANGE_BASE - 15)
 
 /* Indicates that the boot status intentionally (i.e. the bootloader is not
  * capable of producing it) does not contain any SW components' measurement.

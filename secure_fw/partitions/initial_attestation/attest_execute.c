@@ -17,7 +17,7 @@ bool attest_ns_buffer_ok(const void *p, uint32_t len)
                                     CMSE_NONSECURE) != NULL;
 }
 
-int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
+int attest_ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
                uint8_t *output, uint32_t *output_len,
                struct ns_exec_snapshot *snap)
 {
@@ -59,7 +59,7 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
     return ret;
 }
 
-int ns_execute_void(uintptr_t faddr)
+int attest_ns_execute_void(uintptr_t faddr)
 {
     if (!faddr) {
         POX_LOG_ERR("[Secure] ERROR: Null function pointer.\n");
@@ -70,4 +70,62 @@ int ns_execute_void(uintptr_t faddr)
     int ret = ns_function();
 
     return ret;
+}
+
+/* Bytes go through a Secure bounce buffer: each is read once, here,
+ * and the Crypto partition never sees an NS address from this one. */
+#define POX_MEASURE_CHUNK 128u
+
+static psa_status_t hash_ns_range(const uint8_t *p, uint32_t len,
+                                  uint8_t digest[POX_MEASURE_HASH_LEN])
+{
+    psa_hash_operation_t op = PSA_HASH_OPERATION_INIT;
+    uint8_t chunk[POX_MEASURE_CHUNK];
+    size_t digest_len = 0;
+    psa_status_t status = psa_hash_setup(&op, PSA_ALG_SHA_256);
+
+    for (uint32_t off = 0; status == PSA_SUCCESS && off < len; ) {
+        uint32_t n = len - off;
+        if (n > POX_MEASURE_CHUNK) {
+            n = POX_MEASURE_CHUNK;
+        }
+        memcpy(chunk, p + off, n);
+        status = psa_hash_update(&op, chunk, n);
+        off += n;
+    }
+
+    if (status == PSA_SUCCESS) {
+        status = psa_hash_finish(&op, digest, POX_MEASURE_HASH_LEN,
+                                 &digest_len);
+    }
+    if (status != PSA_SUCCESS) {
+        (void)psa_hash_abort(&op);
+    }
+    return status;
+}
+
+psa_status_t attest_ns_measure(uintptr_t faddr, uint32_t func_len,
+                         const uint8_t *input, uint32_t input_len,
+                         struct ns_exec_measurement *meas)
+{
+    const uint8_t *code = (const uint8_t *)(faddr & ~(uintptr_t)1u);
+
+    if (meas == NULL || code == NULL ||
+        func_len == 0u || func_len > POX_FUNC_LEN_MAX ||
+        !attest_ns_buffer_ok(code, func_len)) {
+        POX_LOG_ERR("[Secure] ERROR: Function range is not Non-Secure.\n");
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (input_len > POX_INPUT_HASH_MAX ||
+        (input_len > 0u && !attest_ns_buffer_ok(input, input_len))) {
+        POX_LOG_ERR("[Secure] ERROR: Input buffer is not Non-Secure.\n");
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    psa_status_t status = hash_ns_range(code, func_len, meas->func_hash);
+    if (status == PSA_SUCCESS) {
+        status = hash_ns_range(input, input_len, meas->input_hash);
+    }
+    return status;
 }

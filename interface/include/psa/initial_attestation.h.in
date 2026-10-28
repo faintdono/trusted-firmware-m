@@ -199,6 +199,8 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
  *
  * \param[in]     faddr           Function address (uintptr_t) for which the
  *                                proof of execution is being generated.
+ * \param[in]     func_len        Size of the function's code in bytes; the
+ *                                secure side hashes it before running it.
  * \param[in]     input_bytes     Pointer to input bytes provided to the
  *                                function being attested (may be NULL).
  * \param[in]     input_len       Length of input_bytes in bytes.
@@ -229,6 +231,7 @@ psa_initial_attest_get_token_size(size_t  challenge_size,
  */
 psa_status_t
 psa_proof_of_execution_get_token(uintptr_t faddr,
+                                 size_t func_len,
                                  const uint8_t *input_bytes,
                                  size_t input_len,
                                  const uint8_t *ns_output,

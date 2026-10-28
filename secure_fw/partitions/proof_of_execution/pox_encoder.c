@@ -2,7 +2,7 @@
  * pox_encoder.c
  *
  * Encodes the PoX CBOR claims map from decoded IAT claims plus the
- * extension claims (faddr, exec_output). CCA-only claims are guarded
+ * extension claims (faddr, func/input hashes, exec_output). CCA-only claims are guarded
  * by #if ATTEST_TOKEN_PROFILE_ARM_CCA so the file also compiles under
  * the PSA_IOT_1 and PSA_2_0_0 profiles.
  */
@@ -16,6 +16,7 @@
 
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
+                               const struct ns_exec_measurement *meas,
                                const uint8_t   *exec_output,
                                size_t           exec_output_len,
                                const pox_session_ctx_t *sess,
@@ -23,7 +24,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
                                size_t           scratch_sz,
                                size_t          *encoded_len)
 {
-    if (!iat || !scratch || !encoded_len) {
+    if (!iat || !meas || !scratch || !encoded_len) {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -40,7 +41,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 
     /*
      * Claim ordering matches attest_pox_create_token() in attest_core.c:
-     *   faddr, exec_output, nonce,
+     *   faddr, func_hash, input_hash, exec_output, nonce,
      *   then claim_query_funcs order:
      *     boot_seed (PSA_IOT/2_0_0), instance_id, implementation_id,
      *     caller_id (PSA_IOT/2_0_0), security_lifecycle, sw_components,
@@ -51,6 +52,12 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
      */
 
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_POX_FADDR, (uint64_t)faddr);
+
+    /* Pre-execution measurements, matching attest_add_measurement(). */
+    QCBOREncode_AddBytesToMapN(&ec, IAT_POX_FUNC_HASH,
+        (UsefulBufC){ meas->func_hash, sizeof(meas->func_hash) });
+    QCBOREncode_AddBytesToMapN(&ec, IAT_POX_INPUT_HASH,
+        (UsefulBufC){ meas->input_hash, sizeof(meas->input_hash) });
 
     /* Byte string of the whole attested value, matching
      * attest_add_execution_value() on the attestation-partition path. */

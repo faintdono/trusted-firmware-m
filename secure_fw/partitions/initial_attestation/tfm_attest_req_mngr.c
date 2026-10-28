@@ -215,6 +215,7 @@ static psa_status_t psa_attest_proof_of_execution(const psa_msg_t *msg)
      * the casts are deliberate and explicit. output_len is a LENGTH,
      * passed by value. */
     status = attest_proof_of_execution(view.function_addr_le32,
+                               view.function_len,
                                (const uint8_t *)(uintptr_t)view.input,
                                view.input_len,
                                (uint8_t *)(uintptr_t)view.output,

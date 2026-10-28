@@ -30,6 +30,8 @@ static ser_status_t validate_req(const ns_pox_call_req_t *req)
     if (req->challenge_len < POX_CHALLENGE_LEN_MIN ||
         req->challenge_len > POX_CHALLENGE_LEN_MAX) return SER_EINVAL;
     if (req->input_len && !req->input) return SER_EINVAL;
+    if (req->function_len == 0u ||
+        req->function_len > POX_FUNC_LEN_MAX) return SER_EINVAL;
 
     /* output addr/len must be both zero or both non-zero */
     {
@@ -87,6 +89,9 @@ ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
     if (add_ov(n, 8u + (size_t)req->challenge_len, &tmp)) return SER_E2BIG; n = tmp;
 
     /* FUNC_ADDR TLV: 8 + 4 */
+    if (add_ov(n, 8u + 4u, &tmp)) return SER_E2BIG; n = tmp;
+
+    /* FUNC_LEN TLV: 8 + 4 */
     if (add_ov(n, 8u + 4u, &tmp)) return SER_E2BIG; n = tmp;
 
     /* INPUT_ADDR TLV: 8 + 4 */
@@ -152,6 +157,14 @@ ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
         uint8_t tmp[4];
         le32_store(tmp, (uint32_t)req->function_addr);
         ser_status_t st = put_tlv(out, cap, &off, POX_TLV_FUNC_ADDR, tmp, 4, &tlv_count);
+        if (st != SER_OK) return st;
+    }
+
+    /* FUNC_LEN (4B LE) */
+    {
+        uint8_t tmp[4];
+        le32_store(tmp, req->function_len);
+        ser_status_t st = put_tlv(out, cap, &off, POX_TLV_FUNC_LEN, tmp, 4, &tlv_count);
         if (st != SER_OK) return st;
     }
 

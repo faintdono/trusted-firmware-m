@@ -40,12 +40,15 @@ target_sources(tfm_t_cose_common
         $<$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>:${T_COSE_PATH}/src/t_cose_mac_compute.c>
         $<$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>:${T_COSE_PATH}/src/t_cose_mac_validate.c>
 
-        $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:${T_COSE_PATH}/src/t_cose_sign_sign.c>
-        $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:${T_COSE_PATH}/src/t_cose_sign1_sign.c>
-        $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:${T_COSE_PATH}/src/t_cose_signature_sign_main.c>
-        $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:${T_COSE_PATH}/src/t_cose_sign_verify.c>
-        $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:${T_COSE_PATH}/src/t_cose_sign1_verify.c>
-        $<$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>:${T_COSE_PATH}/src/t_cose_signature_verify_main.c>
+        # PoX: the dedicated Proof of Execution partition signs its own token with
+        # an ECDSA key even when Initial Attestation uses a symmetric IAK, so keep
+        # the COSE_Sign1 sources whenever that partition is built.
+        $<$<OR:$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>,$<BOOL:${TFM_PARTITION_PROOF_OF_EXECUTION}>>:${T_COSE_PATH}/src/t_cose_sign_sign.c>
+        $<$<OR:$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>,$<BOOL:${TFM_PARTITION_PROOF_OF_EXECUTION}>>:${T_COSE_PATH}/src/t_cose_sign1_sign.c>
+        $<$<OR:$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>,$<BOOL:${TFM_PARTITION_PROOF_OF_EXECUTION}>>:${T_COSE_PATH}/src/t_cose_signature_sign_main.c>
+        $<$<OR:$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>,$<BOOL:${TFM_PARTITION_PROOF_OF_EXECUTION}>>:${T_COSE_PATH}/src/t_cose_sign_verify.c>
+        $<$<OR:$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>,$<BOOL:${TFM_PARTITION_PROOF_OF_EXECUTION}>>:${T_COSE_PATH}/src/t_cose_sign1_verify.c>
+        $<$<OR:$<NOT:$<BOOL:${SYMMETRIC_INITIAL_ATTESTATION}>>,$<BOOL:${TFM_PARTITION_PROOF_OF_EXECUTION}>>:${T_COSE_PATH}/src/t_cose_signature_verify_main.c>
 
         ${T_COSE_PATH}/crypto_adapters/t_cose_psa_crypto.c
         ${T_COSE_PATH}/src/t_cose_key.c

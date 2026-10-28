@@ -19,6 +19,7 @@
 
 psa_status_t
 psa_proof_of_execution_get_token(uintptr_t faddr,
+                                 size_t func_len,
                                  const uint8_t *input_bytes,
                                  size_t input_len,
                                  const uint8_t *ns_output,
@@ -48,6 +49,7 @@ psa_proof_of_execution_get_token(uintptr_t faddr,
         .challenge = auth_challenge,
         .challenge_len = challenge_size,   /* 32..64 */
         .function_addr = (uintptr_t)faddr,    /* Cast pointer to uintptr_t */
+        .function_len  = (uint32_t)func_len,
         .input = (uintptr_t)input_bytes,         /* may be NULL if input_len == 0 */
         .input_len = input_len,
         .output = (uintptr_t)ns_output,        /* may be NULL if output_len == 0 */

@@ -4,7 +4,7 @@
 #include "psa/client.h"
 #include "attest.h"
 #include "attest_boot_data.h"
-#include "attest_execute.h"   /* ns_execute(), struct ns_exec_snapshot */
+#include "attest_execute.h"   /* attest_ns_execute(), struct ns_exec_snapshot */
 #include "attest_key.h"
 #include "attest_token.h"
 #include "config_tfm.h"
@@ -506,6 +506,28 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
 }
 
 /*!
+ * \brief Static function to add the pre-execution hashes of the
+ *        function's code and input to proof of execution.
+ *
+ * \param[in]  token_ctx  Token encoding context
+ * \param[in]  meas       Secure-memory hashes taken before F ran
+ */
+static void
+attest_add_measurement(struct attest_token_encode_ctx *token_ctx,
+                       const struct ns_exec_measurement *meas)
+{
+    struct q_useful_buf_c claim_value;
+
+    claim_value.ptr = meas->func_hash;
+    claim_value.len = sizeof(meas->func_hash);
+    attest_token_encode_add_bstr(token_ctx, IAT_POX_FUNC_HASH, &claim_value);
+
+    claim_value.ptr = meas->input_hash;
+    claim_value.len = sizeof(meas->input_hash);
+    attest_token_encode_add_bstr(token_ctx, IAT_POX_INPUT_HASH, &claim_value);
+}
+
+/*!
  * \brief Static function to add the execution value to proof of execution.
  *
  * \param[in]  token_ctx        Token encoding context
@@ -787,6 +809,7 @@ error:
 #ifdef ATTEST_POX
 static enum psa_attest_err_t
 attest_pox_create_token(uintptr_t faddr,
+                 uint32_t func_len,
                  const uint8_t *input,
                  const uint32_t input_len,
                  uint8_t *output,
@@ -825,6 +848,17 @@ attest_pox_create_token(uintptr_t faddr,
         attest_err = error_mapping_to_psa_attest_err_t(token_err);
         goto error;
     }
+    /* Measure F's code and input in Secure state, right before F
+     * runs: F can rewrite both, and the token must show what it
+     * started from. */
+    struct ns_exec_measurement exec_meas;
+    if (attest_ns_measure(faddr, func_len, input, input_len,
+                          &exec_meas) != PSA_SUCCESS)
+    {
+        attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
+        goto error;
+    }
+
     struct ns_exec_snapshot exec_snap = { 0 };
     if (input_len != 0)
     {
@@ -833,7 +867,7 @@ attest_pox_create_token(uintptr_t faddr,
          * secure world an NS-controlled value to dereference. */
         uint32_t exec_out_len = output_len;
 
-        execute_value = ns_execute(faddr, input, input_len, output,
+        execute_value = attest_ns_execute(faddr, input, input_len, output,
                                    &exec_out_len, &exec_snap);
 
         /* Nothing ran - a token here would attest an execution that
@@ -849,6 +883,7 @@ attest_pox_create_token(uintptr_t faddr,
     {
         goto error;
     }
+    attest_add_measurement(&attest_token_ctx, &exec_meas);
     /* Encode from the Secure snapshot: the NS buffer is attacker-
      * writable and the claim is encoded at least one call later.
      * Whole captured output where there is one, the call's return code
@@ -937,7 +972,8 @@ error:
 }
 
 psa_status_t
-attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t input_len,
+attest_proof_of_execution(uintptr_t faddr, uint32_t func_len,
+                   const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t output_len,
                    const void *challenge_buf, size_t challenge_size,
                    const attest_session_ctx_t *sess,
@@ -965,7 +1001,7 @@ attest_proof_of_execution(uintptr_t faddr, const uint8_t *input, const uint32_t 
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
-    attest_err = attest_pox_create_token(faddr, input, input_len, output, output_len, &challenge, sess, &token, &completed_token);
+    attest_err = attest_pox_create_token(faddr, func_len, input, input_len, output, output_len, &challenge, sess, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;

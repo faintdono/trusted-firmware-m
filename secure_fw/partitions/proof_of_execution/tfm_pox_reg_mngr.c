@@ -19,7 +19,7 @@
 #include "pox_log.h"
 
 /* Shared output buffer for the signed PoX token */
-static uint8_t token_buff[ATT_MAX_TOKEN_SIZE];
+static uint8_t token_buff[POX_MAX_TOKEN_SIZE];
 
 static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 {
@@ -100,6 +100,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 
     status = proof_of_execution(
                  view.function_addr_le32,
+                 view.function_len,
                  (const uint8_t *)(uintptr_t)view.input,
                  view.input_len,
                  (uint8_t *)(uintptr_t)view.output,

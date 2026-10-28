@@ -41,7 +41,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 
     /*
      * Claim ordering matches attest_pox_create_token() in attest_core.c:
-     *   faddr, func_hash, input_hash, exec_output, nonce,
+     *   faddr, func_hash, input_hash, [input_value], exec_output, nonce,
      *   then claim_query_funcs order:
      *     boot_seed (PSA_IOT/2_0_0), instance_id, implementation_id,
      *     caller_id (PSA_IOT/2_0_0), security_lifecycle, sw_components,
@@ -58,6 +58,10 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
         (UsefulBufC){ meas->func_hash, sizeof(meas->func_hash) });
     QCBOREncode_AddBytesToMapN(&ec, IAT_POX_INPUT_HASH,
         (UsefulBufC){ meas->input_hash, sizeof(meas->input_hash) });
+    if (meas->has_input_value) {
+        QCBOREncode_AddBytesToMapN(&ec, IAT_POX_INPUT_VALUE,
+            (UsefulBufC){ meas->input_value, meas->input_value_len });
+    }
 
     /* Byte string of the whole attested value, matching
      * attest_add_execution_value() on the attestation-partition path. */

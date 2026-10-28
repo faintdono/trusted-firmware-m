@@ -63,13 +63,20 @@ int attest_ns_execute_void(uintptr_t faddr);
 struct ns_exec_measurement {
     uint8_t func_hash[POX_MEASURE_HASH_LEN];
     uint8_t input_hash[POX_MEASURE_HASH_LEN];
+    /* The input itself, valid when has_input_value. */
+    uint8_t  input_value[POX_INPUT_CLAIM_MAX];
+    uint32_t input_value_len;
+    bool     has_input_value;
 };
 
 /**
  * @brief SHA-256 of [faddr & ~1, +func_len) and of [input, +input_len).
  *
  * Both ranges must be wholly Non-Secure: hashing Secure memory would
- * leak it into the token. An empty input hashes to SHA-256(""). Call
+ * leak it into the token. An empty input hashes to SHA-256(""). An
+ * input of at most POX_INPUT_CLAIM_MAX bytes is copied once into
+ * meas->input_value and hashed from that copy, so the raw value and
+ * the hash in the token always agree. Call
  * immediately before attest_ns_execute*().
  *
  * @retval PSA_ERROR_INVALID_ARGUMENT  bad range or length

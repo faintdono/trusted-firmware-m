@@ -123,8 +123,17 @@ psa_status_t pox_ns_measure(uintptr_t faddr, uint32_t func_len,
     }
 
     psa_status_t status = hash_ns_range(code, func_len, meas->func_hash);
-    if (status == PSA_SUCCESS) {
-        status = hash_ns_range(input, input_len, meas->input_hash);
+    if (status != PSA_SUCCESS) {
+        return status;
     }
-    return status;
+
+    meas->has_input_value = (input_len <= POX_INPUT_CLAIM_MAX);
+    meas->input_value_len = meas->has_input_value ? input_len : 0u;
+    if (meas->has_input_value) {
+        if (input_len > 0u) {
+            memcpy(meas->input_value, input, input_len);
+        }
+        return hash_ns_range(meas->input_value, input_len, meas->input_hash);
+    }
+    return hash_ns_range(input, input_len, meas->input_hash);
 }

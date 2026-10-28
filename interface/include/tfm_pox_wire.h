@@ -106,6 +106,11 @@ typedef enum {
 #define POX_FUNC_LEN_MAX             (0x10000u)
 #define POX_INPUT_HASH_MAX           (0x10000u)
 
+/* Inputs up to this size are also carried raw in the token
+ * (INPUT_VALUE), so a verifier that did not choose the input can see
+ * it; larger inputs are attested by their hash alone. */
+#define POX_INPUT_CLAIM_MAX          (64u)
+
 /* --------------------------- Status codes ------------------------------- */
 
 typedef enum {

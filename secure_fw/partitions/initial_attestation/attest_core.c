@@ -507,7 +507,8 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
 
 /*!
  * \brief Static function to add the pre-execution hashes of the
- *        function's code and input to proof of execution.
+ *        function's code and input, and the input itself when small,
+ *        to proof of execution.
  *
  * \param[in]  token_ctx  Token encoding context
  * \param[in]  meas       Secure-memory hashes taken before F ran
@@ -525,6 +526,13 @@ attest_add_measurement(struct attest_token_encode_ctx *token_ctx,
     claim_value.ptr = meas->input_hash;
     claim_value.len = sizeof(meas->input_hash);
     attest_token_encode_add_bstr(token_ctx, IAT_POX_INPUT_HASH, &claim_value);
+
+    if (meas->has_input_value) {
+        claim_value.ptr = meas->input_value;
+        claim_value.len = meas->input_value_len;
+        attest_token_encode_add_bstr(token_ctx, IAT_POX_INPUT_VALUE,
+                                     &claim_value);
+    }
 }
 
 /*!

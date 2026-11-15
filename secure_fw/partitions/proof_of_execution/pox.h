@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
 #ifndef POX_H
 #define POX_H
 
@@ -10,12 +17,11 @@
 
 #define POX_CBOR_SCRATCH_SIZE   2048
 
-/* IAT token buffer size; sized with headroom for the embedded
- * sess_sig claim. */
+/* IAT token buffer size. */
 #define ATT_MAX_TOKEN_SIZE      0x2C0
 
-/* Signed PoX token buffer: the IAT claims plus faddr, two 32-byte
- * measurement hashes, the output and the session claims. */
+/* Signed PoX token buffer: the IAT claims plus faddr, the input, the
+ * output and the session claims. */
 #define POX_MAX_TOKEN_SIZE      0x340
 
 /* Must stay in [PSA_KEY_ID_USER_MIN, PSA_KEY_ID_USER_MAX] and must not
@@ -48,9 +54,8 @@ psa_status_t pox_set_signing_key(const uint8_t *priv_key, size_t priv_key_len);
 #endif
 
 /**
- * @brief Full PoX flow: get IAT, decode, measure, execute, encode, sign.
+ * @brief Full PoX flow: get IAT, decode, execute, encode, sign.
  *
- * @param func_len        Size of F's code; hashed before F runs
  * @param output_len      In: output capacity; out: bytes written
  * @param challenge_buf   Authenticated verifier nonce, reused as the
  *                        IAT challenge (32, 48 or 64 bytes)
@@ -58,7 +63,7 @@ psa_status_t pox_set_signing_key(const uint8_t *priv_key, size_t priv_key_len);
  *                        session auth is disabled
  */
 psa_status_t
-proof_of_execution(uintptr_t faddr, uint32_t func_len,
+proof_of_execution(uintptr_t faddr,
                    const uint8_t *input,  const uint32_t input_len,
                    uint8_t       *output, uint32_t       *output_len,
                    uint8_t *challenge_buf, size_t challenge_size,
@@ -78,7 +83,7 @@ proof_of_execution(uintptr_t faddr, uint32_t func_len,
  */
 psa_status_t
 pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
-                 uintptr_t faddr, uint32_t func_len,
+                 uintptr_t faddr,
                  const uint8_t *input,  uint32_t  input_len,
                  uint8_t       *output, uint32_t *output_len,
                  const uint8_t *challenge_buf, size_t challenge_size,

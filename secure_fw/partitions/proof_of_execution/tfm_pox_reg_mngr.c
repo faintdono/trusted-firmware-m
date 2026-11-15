@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * tfm_pox_reg_mngr.c
  *
  * IPC request manager for the Proof-of-Execution (PoX) secure partition.
@@ -66,7 +73,7 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-#if POX_SESSION_AUTH
+#if POX_REQUEST_AUTH
     if (view.session_id == NULL || view.sess_sig == NULL) {
         POX_LOG_INF("[PoX] Missing session credentials: rejecting\n");
         return PSA_ERROR_NOT_PERMITTED;
@@ -88,10 +95,8 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
         .caller_id      = msg->client_id,
         .sess_sig       = view.sess_sig,
         .sess_sig_len   = view.sess_sig_len,
-#if POX_SESSION_AUTH
+#if POX_REQUEST_AUTH
         .boot_epoch     = pox_session_get_epoch(),
-#endif
-#if POX_SEQ_AUTH
         .seq            = view.seq,
 #endif
     };
@@ -100,7 +105,6 @@ static psa_status_t psa_proof_of_execution(const psa_msg_t *msg)
 
     status = proof_of_execution(
                  view.function_addr_le32,
-                 view.function_len,
                  (const uint8_t *)(uintptr_t)view.input,
                  view.input_len,
                  (uint8_t *)(uintptr_t)view.output,

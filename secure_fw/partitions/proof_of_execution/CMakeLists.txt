@@ -1,8 +1,9 @@
+#-------------------------------------------------------------------------------
+# SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+# SPDX-License-Identifier: BSD-3-Clause
 #
-# Copyright (c) 2021 Nordic Semiconductor ASA
-#
-# SPDX-License-Identifier: Apache-2.0
-#
+#-------------------------------------------------------------------------------
+
 if (NOT TFM_PARTITION_PROOF_OF_EXECUTION)
     return()
 endif()
@@ -63,17 +64,9 @@ target_compile_definitions(tfm_app_rot_partition_pox
     PRIVATE
         $<$<BOOL:${POX_ALLOW_RUNTIME_KEY_OVERRIDE}>:POX_ALLOW_RUNTIME_KEY_OVERRIDE=1>
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
-        $<$<BOOL:${POX_SESSION_AUTH}>:POX_SESSION_AUTH=1>
-        $<$<BOOL:${POX_SEQ_AUTH}>:POX_SEQ_AUTH=1>
+        $<$<BOOL:${POX_REQUEST_AUTH}>:POX_REQUEST_AUTH=1>
         $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
 )
-
-if (DEFINED POX_NONCE_HISTORY)
-    target_compile_definitions(tfm_app_rot_partition_pox
-        PRIVATE
-            POX_NONCE_HISTORY=${POX_NONCE_HISTORY}
-    )
-endif()
 
 target_link_libraries(tfm_spm
     PRIVATE

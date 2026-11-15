@@ -1,4 +1,10 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
 /*
  * tfm_pox_wire.h
  *
@@ -28,31 +34,25 @@
  * Mandatory TLVs:
  *   CHALLENGE (len in [32..64])
  *   FUNC_ADDR (len == 4, LE; selector/ID, NOT an executable pointer)
- *   FUNC_LEN  (len == 4, LE; size of F's code in bytes, from the
- *             verifier's ELF symbol table. Not signed: the secure side
- *             hashes [faddr & ~1, +func_len) into the token, so a wrong
- *             length only yields a hash the verifier rejects.)
  *   INPUT_ADDR  (len == 4)   iff input_len_dup  != 0
  *   OUTPUT_ADDR (len == 4)   iff output_len_dup != 0
  *
  * Session authentication TLVs (both present, or neither; the secure
- * side rejects session-less requests when POX_SESSION_AUTH is enabled):
+ * side rejects session-less requests when POX_REQUEST_AUTH is enabled):
  *   SESSION_ID (len in [8..32])    opaque, verifier-assigned
  *   SESS_SIG   (len == 64)         ECDSA P-256 raw r||s over the
  *                                  request transcript (version byte
  *                                  selects the layout):
- *                                    v2: ver | sid_len | session_id |
- *                                        nonce_len | nonce | faddr_le32 |
- *                                        epoch_le32
- *                                    v3: v2 | seq_le32
- *   SEQ  (len == 4, LE)  optional  monotonic request counter
- *                                  (verifier-assigned). Present in v3
- *                                  (POX_SEQ_AUTH) builds; the device
- *                                  accepts a request only when seq
- *                                  strictly exceeds the highest it has
- *                                  accepted this boot, which replaces
- *                                  the bounded nonce ring with O(1)
- *                                  state and no replay window. The
+ *                                    ver(3) | sid_len | session_id |
+ *                                    nonce_len | nonce | faddr_le32 |
+ *                                    epoch_le32 | seq_le32
+ *   SEQ  (len == 4, LE)  monotonic request counter (verifier-
+ *                                  assigned); required with request
+ *                                  authentication. The device accepts
+ *                                  a request only when seq strictly
+ *                                  exceeds the highest it has accepted
+ *                                  this boot: O(1) state and no replay
+ *                                  window. The
  *                                  counter is device-wide, not per
  *                                  session: all sessions served by a
  *                                  partition share one high-water
@@ -90,8 +90,8 @@ typedef enum {
     POX_TLV_OUTPUT_ADDR = 0x0004,
     POX_TLV_SESSION_ID  = 0x0005,
     POX_TLV_SESS_SIG    = 0x0006,
-    POX_TLV_SEQ         = 0x0007,
-    POX_TLV_FUNC_LEN    = 0x0008
+    POX_TLV_SEQ         = 0x0007
+    /* 0x0008 was FUNC_LEN; retired, do not reuse. */
 } pox_tlv_type_t;
 
 #define POX_CHALLENGE_LEN_MIN        (32u)
@@ -101,14 +101,9 @@ typedef enum {
 #define POX_SESSION_ID_MAX           (32u)
 #define POX_SESS_SIG_LEN             (64u)
 
-/* Upper bounds on what the secure side hashes before running F; the
- * hash runs with NS interrupts masked, so it must stay bounded. */
-#define POX_FUNC_LEN_MAX             (0x10000u)
-#define POX_INPUT_HASH_MAX           (0x10000u)
-
-/* Inputs up to this size are also carried raw in the token
- * (INPUT_VALUE), so a verifier that did not choose the input can see
- * it; larger inputs are attested by their hash alone. */
+/* Largest input F may be given. The whole input is carried raw in the
+ * token (INPUT_VALUE), so the verifier always sees what F ran on;
+ * longer inputs are rejected. */
 #define POX_INPUT_CLAIM_MAX          (64u)
 
 /* --------------------------- Status codes ------------------------------- */
@@ -131,7 +126,6 @@ typedef struct {
     uint32_t       challenge_len; /* 32..64 */
 
     uint32_t       function_addr; /* 32-bit on wire (selector/ID) */
-    uint32_t       function_len;  /* F's code size; 1..POX_FUNC_LEN_MAX */
 
     uint32_t       input;         /* NS address; may be 0 if input_len == 0 */
     uint32_t       input_len;     /* bytes */
@@ -150,7 +144,7 @@ typedef struct {
 
     /* Monotonic request counter (verifier-assigned), shared by all
      * sessions this boot. Emitted as the SEQ TLV iff has_seq; bound
-     * into the v3 transcript signed by the verifier. */
+     * into the transcript signed by the verifier. */
     uint32_t       seq;
     bool           has_seq;
 
@@ -177,7 +171,6 @@ typedef struct {
     uint32_t       challenge_len;
 
     uintptr_t      function_addr_le32;  /* selector/ID */
-    uint32_t       function_len;        /* F's code size (FUNC_LEN) */
     uintptr_t      input;               /* NS address (0 if input_len == 0) */
     uint32_t       input_len;           /* from header (input_len_dup) */
 

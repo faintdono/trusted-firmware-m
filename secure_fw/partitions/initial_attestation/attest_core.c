@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
 #include <stdint.h>
 #include <string.h>
 #include <stddef.h>
@@ -506,33 +513,21 @@ attest_add_faddr(struct attest_token_encode_ctx *token_ctx,
 }
 
 /*!
- * \brief Static function to add the pre-execution hashes of the
- *        function's code and input, and the input itself when small,
- *        to proof of execution.
+ * \brief Static function to add the function's input, as captured
+ *        before it ran, to proof of execution.
  *
  * \param[in]  token_ctx  Token encoding context
- * \param[in]  meas       Secure-memory hashes taken before F ran
+ * \param[in]  exec_in    Secure-memory copy of the input
  */
 static void
-attest_add_measurement(struct attest_token_encode_ctx *token_ctx,
-                       const struct ns_exec_measurement *meas)
+attest_add_input_value(struct attest_token_encode_ctx *token_ctx,
+                       const struct ns_exec_input *exec_in)
 {
     struct q_useful_buf_c claim_value;
 
-    claim_value.ptr = meas->func_hash;
-    claim_value.len = sizeof(meas->func_hash);
-    attest_token_encode_add_bstr(token_ctx, IAT_POX_FUNC_HASH, &claim_value);
-
-    claim_value.ptr = meas->input_hash;
-    claim_value.len = sizeof(meas->input_hash);
-    attest_token_encode_add_bstr(token_ctx, IAT_POX_INPUT_HASH, &claim_value);
-
-    if (meas->has_input_value) {
-        claim_value.ptr = meas->input_value;
-        claim_value.len = meas->input_value_len;
-        attest_token_encode_add_bstr(token_ctx, IAT_POX_INPUT_VALUE,
-                                     &claim_value);
-    }
+    claim_value.ptr = exec_in->value;
+    claim_value.len = exec_in->len;
+    attest_token_encode_add_bstr(token_ctx, IAT_POX_INPUT_VALUE, &claim_value);
 }
 
 /*!
@@ -817,7 +812,6 @@ error:
 #ifdef ATTEST_POX
 static enum psa_attest_err_t
 attest_pox_create_token(uintptr_t faddr,
-                 uint32_t func_len,
                  const uint8_t *input,
                  const uint32_t input_len,
                  uint8_t *output,
@@ -833,8 +827,6 @@ attest_pox_create_token(uintptr_t faddr,
     int32_t key_select = 0;
     int i;
     int32_t cose_algorithm_id;
-    /* Initialised: when input_len == 0 the attested function is never
-     * called, and this is still the fallback the token attests. */
     int execute_value = 0;
 
     attest_err = attest_get_t_cose_algorithm(&cose_algorithm_id);
@@ -856,19 +848,25 @@ attest_pox_create_token(uintptr_t faddr,
         attest_err = error_mapping_to_psa_attest_err_t(token_err);
         goto error;
     }
-    /* Measure F's code and input in Secure state, right before F
-     * runs: F can rewrite both, and the token must show what it
-     * started from. */
-    struct ns_exec_measurement exec_meas;
-    if (attest_ns_measure(faddr, func_len, input, input_len,
-                          &exec_meas) != PSA_SUCCESS)
+    /* Copy F's input into Secure memory right before F runs: F can
+     * rewrite it, and the token must show what it started from. */
+    struct ns_exec_input exec_in;
+    if (attest_ns_capture_input(input, input_len, &exec_in) != PSA_SUCCESS)
     {
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
 
+    /* F runs on every path, as in the standalone partition: a token
+     * must never attest an execution that did not happen. Without an
+     * input or output buffer F is called with no arguments and its
+     * return code is what the token attests. */
     struct ns_exec_snapshot exec_snap = { 0 };
-    if (input_len != 0)
+    if (input_len == 0 || input == NULL || output == NULL)
+    {
+        execute_value = attest_ns_execute_void(faddr);
+    }
+    else
     {
         /* Secure storage the non-secure world cannot write; passing
          * the caller's length through as a pointer would hand the
@@ -891,7 +889,7 @@ attest_pox_create_token(uintptr_t faddr,
     {
         goto error;
     }
-    attest_add_measurement(&attest_token_ctx, &exec_meas);
+    attest_add_input_value(&attest_token_ctx, &exec_in);
     /* Encode from the Secure snapshot: the NS buffer is attacker-
      * writable and the claim is encoded at least one call later.
      * Whole captured output where there is one, the call's return code
@@ -938,24 +936,10 @@ attest_pox_create_token(uintptr_t faddr,
         attest_token_encode_add_integer(&attest_token_ctx,
                                         POX_LABEL_CALLER_ID,
                                         (int64_t)sess->caller_id);
-#if POX_SESSION_AUTH_ATT
-        /* Verifier authorization signature, emitted only after it
-         * verified: makes the token self-contained evidence. */
-        if (sess->sess_sig != NULL && sess->sess_sig_len > 0)
-        {
-            struct q_useful_buf_c ssig;
-            ssig.ptr = sess->sess_sig;
-            ssig.len = sess->sess_sig_len;
-            attest_token_encode_add_bstr(&attest_token_ctx,
-                                         POX_LABEL_SESS_SIG, &ssig);
-        }
-#endif
-#if POX_SESSION_AUTH_ATT
+#if POX_REQUEST_AUTH_ATT
         attest_token_encode_add_integer(&attest_token_ctx,
                                         POX_LABEL_BOOT_EPOCH,
                                         (int64_t)sess->boot_epoch);
-#endif
-#if POX_SEQ_AUTH
         attest_token_encode_add_integer(&attest_token_ctx,
                                         POX_LABEL_SEQ,
                                         (int64_t)sess->seq);
@@ -980,7 +964,7 @@ error:
 }
 
 psa_status_t
-attest_proof_of_execution(uintptr_t faddr, uint32_t func_len,
+attest_proof_of_execution(uintptr_t faddr,
                    const uint8_t *input, const uint32_t input_len,
                    uint8_t *output, uint32_t output_len,
                    const void *challenge_buf, size_t challenge_size,
@@ -1009,7 +993,7 @@ attest_proof_of_execution(uintptr_t faddr, uint32_t func_len,
         attest_err = PSA_ATTEST_ERR_INVALID_INPUT;
         goto error;
     }
-    attest_err = attest_pox_create_token(faddr, func_len, input, input_len, output, output_len, &challenge, sess, &token, &completed_token);
+    attest_err = attest_pox_create_token(faddr, input, input_len, output, output_len, &challenge, sess, &token, &completed_token);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {
         goto error;

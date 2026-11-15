@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
 #ifndef POX_IAT_DECODER_H
 #define POX_IAT_DECODER_H
 

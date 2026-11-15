@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_log.h
  *
  * Compile-time switchable logging for the PoX secure partition.

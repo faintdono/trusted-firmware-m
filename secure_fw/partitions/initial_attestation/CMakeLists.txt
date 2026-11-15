@@ -71,22 +71,14 @@ target_compile_definitions(tfm_psa_rot_partition_attestation
         # PoX inside the attestation partition (TFM_ATTEST_GET_POX):
         # deserializer, NS-function execution, token path, session auth.
         $<$<BOOL:${ATTEST_POX}>:ATTEST_POX=1>
-        # PoX session auth for the TFM_ATTEST_GET_POX path. Own instance
-        # and own flag (POX_SESSION_AUTH_ATT), independent from the
-        # standalone PoX partition's POX_SESSION_AUTH, so the two paths
+        # PoX request auth for the TFM_ATTEST_GET_POX path. Own instance
+        # and own flag (POX_REQUEST_AUTH_ATT), independent from the
+        # standalone PoX partition's POX_REQUEST_AUTH, so the two paths
         # can be built authenticated/unauthenticated separately.
-        $<$<BOOL:${POX_SESSION_AUTH_ATT}>:POX_SESSION_AUTH_ATT=1>
-        $<$<BOOL:${POX_SEQ_AUTH}>:POX_SEQ_AUTH=1>
+        $<$<BOOL:${POX_REQUEST_AUTH_ATT}>:POX_REQUEST_AUTH_ATT=1>
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
         $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
 )
-
-if (DEFINED POX_NONCE_HISTORY)
-    target_compile_definitions(tfm_psa_rot_partition_attestation
-        PRIVATE
-            POX_NONCE_HISTORY=${POX_NONCE_HISTORY}
-    )
-endif()
 
 ########################### Attest defs ########################################
 

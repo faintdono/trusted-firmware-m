@@ -28,13 +28,12 @@
  *   faddr_le32(4)
  *
  * session_id/sess_sig may be NULL only when the secure partition is
- * built with POX_SESSION_AUTH disabled; otherwise the request is
+ * built with POX_REQUEST_AUTH disabled; otherwise the request is
  * rejected with PSA_ERROR_NOT_PERMITTED.
  * ---------------------------------------------------------------------- */
 
 psa_status_t
 psa_pox_get_token(uintptr_t      faddr,
-                  size_t         func_len,
                   const uint8_t *input,
                   size_t         input_len,
                   uint8_t       *output,
@@ -76,7 +75,6 @@ psa_pox_get_token(uintptr_t      faddr,
         .challenge       = challenge,
         .challenge_len   = (uint32_t)challenge_size,
         .function_addr   = (uint32_t)(uintptr_t)faddr,
-        .function_len    = (uint32_t)func_len,
         .input           = (uint32_t)(uintptr_t)input,
         .input_len       = (uint32_t)input_len,
         .output          = (uint32_t)(uintptr_t)output,

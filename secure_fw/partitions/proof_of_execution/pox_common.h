@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_common.h
  *
  * Shared types for the PoX IAT decoder and encoder.
@@ -16,16 +23,15 @@
 
 /*
  * Session-auth claim labels: CBOR private-use range (negative, below
- * the -65536 boundary reserved by CoRIM/EAT). SESS_SIG carries the
- * 64B raw r||s verifier transcript signature, making the token
- * self-contained authorization evidence for third parties; SEQ lets
- * an auditor order executions within a boot (and, with BOOT_EPOCH,
- * across boots).
+ * the -65536 boundary reserved by CoRIM/EAT). The verifier's request
+ * signature is not echoed: a token is issued only after it verified.
+ * SEQ lets an auditor order executions within a boot (and, with
+ * BOOT_EPOCH, across boots). -65540 was SESS_SIG; retired, do not
+ * reuse.
  */
 #define POX_LABEL_SESSION_ID    (-65537)
 #define POX_LABEL_CALLER_ID     (-65538)
 #define POX_LABEL_BOOT_EPOCH    (-65539)
-#define POX_LABEL_SESS_SIG      (-65540)
 #define POX_LABEL_SEQ           (-65541)
 
 #define MAX_SW_COMPONENTS       16

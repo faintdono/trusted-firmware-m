@@ -1,10 +1,17 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
 #ifndef POX_EXECUTE_H
 #define POX_EXECUTE_H
 #include "tfm_sp_log.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include "psa/crypto.h"
-#include "tfm_pox_wire.h"   /* POX_FUNC_LEN_MAX, POX_INPUT_HASH_MAX */
+#include "tfm_pox_wire.h"   /* POX_INPUT_CLAIM_MAX */
 
 typedef int (*ns_function_ptr_with_args_t)(const uint8_t *input, uint32_t input_len, uint8_t *output, uint32_t *output_len) __attribute__((cmse_nonsecure_call));
 typedef int (*ns_function_ptr_void_t)(void) __attribute__((cmse_nonsecure_call));
@@ -52,37 +59,28 @@ int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,
 int ns_execute_void(uintptr_t faddr);
 
 
-/* SHA-256 digest length of the pre-execution measurements. */
-#define POX_MEASURE_HASH_LEN 32u
-
 /**
- * @brief Secure-memory hashes of F's code and input, taken right before
- *        F runs. F can rewrite both while it runs; these record the
- *        state it started from.
+ * @brief Secure-memory copy of F's input, taken right before F runs.
+ *        F can rewrite its input while it runs; this records what it
+ *        started from. F's code is not measured here: its identity
+ *        comes from the boot measurement of the NS image.
  */
-struct ns_exec_measurement {
-    uint8_t func_hash[POX_MEASURE_HASH_LEN];
-    uint8_t input_hash[POX_MEASURE_HASH_LEN];
-    /* The input itself, valid when has_input_value. */
-    uint8_t  input_value[POX_INPUT_CLAIM_MAX];
-    uint32_t input_value_len;
-    bool     has_input_value;
+struct ns_exec_input {
+    uint8_t  value[POX_INPUT_CLAIM_MAX];
+    uint32_t len;
 };
 
 /**
- * @brief SHA-256 of [faddr & ~1, +func_len) and of [input, +input_len).
+ * @brief Copy [input, +input_len) into Secure memory for the token.
  *
- * Both ranges must be wholly Non-Secure: hashing Secure memory would
- * leak it into the token. An empty input hashes to SHA-256(""). An
- * input of at most POX_INPUT_CLAIM_MAX bytes is copied once into
- * meas->input_value and hashed from that copy, so the raw value and
- * the hash in the token always agree. Call
+ * The range must be wholly Non-Secure: copying Secure memory would
+ * leak it into the token. An empty input gives len == 0. Call
  * immediately before ns_execute*().
  *
- * @retval PSA_ERROR_INVALID_ARGUMENT  bad range or length
+ * @retval PSA_ERROR_INVALID_ARGUMENT  bad range, or input longer than
+ *                                     POX_INPUT_CLAIM_MAX
  */
-psa_status_t pox_ns_measure(uintptr_t faddr, uint32_t func_len,
-                         const uint8_t *input, uint32_t input_len,
-                         struct ns_exec_measurement *meas);
+psa_status_t pox_ns_capture_input(const uint8_t *input, uint32_t input_len,
+                                  struct ns_exec_input *in);
 
 #endif // POX_EXECUTE_H

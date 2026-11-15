@@ -1,20 +1,25 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_session.c
  *
  * Session authentication for the PoX secure partition.
  *
  * Signature-only model: the verifier signs the request transcript
- *   v2: ver(1)=0x02 | sid_len(1) | session_id | nonce_len(1) |
- *       challenge | faddr_le32(4) | epoch_le32(4)
- *   v3 (POX_SEQ_AUTH builds): ver(1)=0x03 | v2 fields | seq_le32(4)
+ *   ver(1)=0x03 | sid_len(1) | session_id | nonce_len(1) |
+ *   challenge | faddr_le32(4) | epoch_le32(4) | seq_le32(4)
  * with its ECDSA P-256 private key (64-byte RAW r||s, PSA format).
  * The partition holds only the verifier PUBLIC key: no session secret,
  * no PSK; ITS holds only the boot epoch counter.
  *
- * Enforcement order: invalid signature -> reject; replayed request
- * (reused nonce / stale seq) -> reject. Anti-replay state is updated
- * ONLY after the signature verifies, so unauthenticated traffic
- * cannot pollute the prover's book.
+ * Enforcement order: invalid signature -> reject; stale seq -> reject.
+ * The seq high-water mark moves ONLY after the signature verifies, so
+ * unauthenticated traffic cannot use up sequence numbers.
  */
 
 #include "pox_session.h"
@@ -22,7 +27,7 @@
 #include "cmsis_compiler.h"
 #include <string.h>
 
-#if POX_SESSION_AUTH
+#if POX_REQUEST_AUTH
 
 #include "psa/internal_trusted_storage.h"
 
@@ -66,26 +71,14 @@ static const uint8_t pox_verifier_placeholder_ref[65] = {
 /* Zero means session auth is unusable: authenticate() fails closed. */
 static psa_key_id_t verifier_key_handle = 0;
 
-#if POX_SEQ_AUTH
 /*
- * Monotonic sequence high-water mark ("prover's book", O(1) form): a
+ * Monotonic sequence high-water mark: a
  * request is accepted only if its seq strictly exceeds this, so there
  * is no eviction window. RAM only - reboot resets it to 0, safe
  * because the boot epoch in the same transcript already invalidates
  * every pre-reboot authorization.
  */
 static uint32_t last_seq = 0;
-#else
-/*
- * Nonce-reuse ring ("prover's book"): bounded RAM history of SHA-256
- * digests accepted this boot. The verifier keeps the authoritative
- * book; this only bounds what a replaying NS relay achieves.
- */
-#define POX_NONCE_DIGEST_LEN 32u
-static uint8_t nonce_ring[POX_NONCE_HISTORY][POX_NONCE_DIGEST_LEN];
-static size_t  nonce_ring_count = 0;
-static size_t  nonce_ring_next  = 0;
-#endif
 
 /* ITS UID for the boot epoch counter ("POXE") */
 #define POX_EPOCH_ITS_UID ((psa_storage_uid_t)0x504F5845u)
@@ -172,12 +165,7 @@ psa_status_t pox_session_init(void)
     }
 
     verifier_key_handle = imported_id;
-#if POX_SEQ_AUTH
     last_seq = 0;
-#else
-    nonce_ring_count = 0;
-    nonce_ring_next  = 0;
-#endif
 
     status = boot_epoch_init();
     if (status != PSA_SUCCESS) {
@@ -188,15 +176,8 @@ psa_status_t pox_session_init(void)
         return status;
     }
 
-#if POX_SEQ_AUTH
     POX_LOG_INF("[PoX] Session auth ready (verifier key handle=0x%x, "
                "monotonic seq)\n", (unsigned int)verifier_key_handle);
-#else
-    POX_LOG_INF("[PoX] Session auth ready (verifier key handle=0x%x, "
-               "nonce ring=%u entries)\n",
-               (unsigned int)verifier_key_handle,
-               (unsigned int)POX_NONCE_HISTORY);
-#endif
     return PSA_SUCCESS;
 }
 
@@ -206,10 +187,6 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
                             1 + POX_CHALLENGE_LEN_MAX + 4 + 4 + 4];
     size_t       off = 0;
     uint32_t     faddr;
-#if !POX_SEQ_AUTH
-    uint8_t      digest[POX_NONCE_DIGEST_LEN];
-    size_t       digest_len = 0;
-#endif
     psa_status_t status;
 
     if (view == NULL) {
@@ -231,12 +208,10 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
         return PSA_ERROR_NOT_PERMITTED;
     }
 
-#if POX_SEQ_AUTH
     /* 0 is reserved for "absent" (verifier counters start at 1). */
     if (!view->has_seq || view->seq == 0u) {
         return PSA_ERROR_NOT_PERMITTED;
     }
-#endif
 
     transcript[off++] = (uint8_t)POX_TRANSCRIPT_VERSION;
     transcript[off++] = (uint8_t)view->session_id_len;
@@ -262,12 +237,10 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
     transcript[off++] = (uint8_t)(boot_epoch_val >> 16);
     transcript[off++] = (uint8_t)(boot_epoch_val >> 24);
 
-#if POX_SEQ_AUTH
     transcript[off++] = (uint8_t)(view->seq);
     transcript[off++] = (uint8_t)(view->seq >> 8);
     transcript[off++] = (uint8_t)(view->seq >> 16);
     transcript[off++] = (uint8_t)(view->seq >> 24);
-#endif
 
     /* sess_sig is 64-byte RAW r||s, not DER. */
     status = psa_verify_message(verifier_key_handle,
@@ -280,7 +253,6 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
         return PSA_ERROR_NOT_PERMITTED;
     }
 
-#if POX_SEQ_AUTH
     /* Accept only if strictly greater than the highest accepted this
      * boot, updated only now that the signature verified. Atomic
      * check-then-update against preemption (SPM already serializes;
@@ -303,56 +275,11 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
             return PSA_ERROR_NOT_PERMITTED;
         }
     }
-#else
-    status = psa_hash_compute(PSA_ALG_SHA_256,
-                              view->challenge, view->challenge_len,
-                              digest, sizeof(digest), &digest_len);
-    if (status != PSA_SUCCESS || digest_len != POX_NONCE_DIGEST_LEN) {
-        return PSA_ERROR_GENERIC_ERROR;
-    }
-
-    /* Atomic check-then-record: scan and insert must not be separable,
-     * or a preemption between them lets a second copy of the same nonce
-     * pass the scan before the first is recorded (SPM already
-     * serializes; defence in depth). Only pure RAM ops go inside - the
-     * crypto IPC calls above must stay interruptible, as they
-     * context-switch to the crypto partition and would deadlock with
-     * interrupts masked. */
-    {
-        uint32_t primask = __get_PRIMASK();
-        bool     reused  = false;
-
-        __disable_irq();
-
-        for (size_t i = 0; i < nonce_ring_count; i++) {
-            if (memcmp(nonce_ring[i], digest, POX_NONCE_DIGEST_LEN) == 0) {
-                reused = true;
-                break;
-            }
-        }
-
-        if (!reused) {
-            memcpy(nonce_ring[nonce_ring_next], digest,
-                   POX_NONCE_DIGEST_LEN);
-            nonce_ring_next = (nonce_ring_next + 1u) % POX_NONCE_HISTORY;
-            if (nonce_ring_count < POX_NONCE_HISTORY) {
-                nonce_ring_count++;
-            }
-        }
-
-        __set_PRIMASK(primask);
-
-        if (reused) {
-            POX_LOG_ERR("[PoX] Nonce reuse detected: request rejected\n");
-            return PSA_ERROR_NOT_PERMITTED;
-        }
-    }
-#endif /* POX_SEQ_AUTH */
 
     return PSA_SUCCESS;
 }
 
-#else /* !POX_SESSION_AUTH */
+#else /* !POX_REQUEST_AUTH */
 
 /* Same link-time surface, so callers need no conditional compilation.
  * No epoch stub: the boot epoch only exists with session auth. */
@@ -367,4 +294,4 @@ psa_status_t pox_session_authenticate(const sec_pox_view_t *view)
     return PSA_SUCCESS;
 }
 
-#endif /* POX_SESSION_AUTH */
+#endif /* POX_REQUEST_AUTH */

@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_session.h
  *
  * Session authentication for the PoX secure partition: the verifier
@@ -16,37 +23,20 @@
 #include <stddef.h>
 
 /* Kconfig-driven; default off if the build system does not define it. */
-#ifndef POX_SESSION_AUTH
-#  define POX_SESSION_AUTH 0
-#endif
-
-#ifndef POX_NONCE_HISTORY
-#  define POX_NONCE_HISTORY 16
-#endif
-
-#ifndef POX_SEQ_AUTH
-#  define POX_SEQ_AUTH 0
-#endif
-
-/* Seq covers in-boot replay only; cross-boot replay is the boot
- * epoch's job, which every session-auth build carries. */
-#if POX_SEQ_AUTH && !POX_SESSION_AUTH
-#  error "POX_SEQ_AUTH requires POX_SESSION_AUTH."
+#ifndef POX_REQUEST_AUTH
+#  define POX_REQUEST_AUTH 0
 #endif
 
 /*
- * Session transcript version.
- *   v2: ver | sid_len | sid | nonce_len | nonce | faddr_le32 |
- *       epoch_le32 - the boot epoch binds the authorization to the
- *       current boot; a signature from epoch N fails after reboot.
- *   v3 (POX_SEQ_AUTH): v2 | seq_le32 - adds the monotonic counter
- *       that replaces the nonce ring.
+ * Request transcript:
+ *   ver | sid_len | sid | nonce_len | nonce | faddr_le32 | epoch_le32 |
+ *   seq_le32
+ * The boot epoch binds the authorization to the current boot (a
+ * signature from epoch N fails after reboot); the monotonic seq
+ * stops replay within a boot. Version 3 keeps the wire format of the
+ * former sequence-number variant, so its credentials stay valid.
  */
-#if POX_SEQ_AUTH
-#  define POX_TRANSCRIPT_VERSION (3u)
-#else
-#  define POX_TRANSCRIPT_VERSION (2u)
-#endif
+#define POX_TRANSCRIPT_VERSION (3u)
 
 /*
  * Validated session context, passed down to the encoder. No nonce
@@ -62,10 +52,8 @@ typedef struct {
      * session auth is enabled (i.e. only after it verified). */
     const uint8_t *sess_sig;
     size_t         sess_sig_len;
-#if POX_SESSION_AUTH
+#if POX_REQUEST_AUTH
     uint32_t       boot_epoch;
-#endif
-#if POX_SEQ_AUTH
     uint32_t       seq;            /* verifier-assigned monotonic seq */
 #endif
 } pox_session_ctx_t;
@@ -79,13 +67,13 @@ psa_status_t pox_session_init(void);
 
 /**
  * @brief Verify the transcript (ECDSA-P256-SHA256), then anti-replay
- *        (seq high-water mark or nonce ring). Either failure ->
+ *        (seq high-water mark). Either failure ->
  *        PSA_ERROR_NOT_PERMITTED, no state change; replay state moves
  *        only after the signature verified.
  */
 psa_status_t pox_session_authenticate(const sec_pox_view_t *view);
 
-#if POX_SESSION_AUTH
+#if POX_REQUEST_AUTH
 /** @brief Current boot epoch (valid after pox_session_init()). */
 uint32_t pox_session_get_epoch(void);
 #endif

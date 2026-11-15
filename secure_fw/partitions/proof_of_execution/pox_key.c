@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_key.c
  *
  * PoX signing key registration: imports a hardcoded ECDSA P-256

@@ -31,9 +31,8 @@ extern "C" {
 #define IAT_VERIFICATION_SERVICE           (IAT_ARM_RANGE_BASE - 10)
 #define IAT_POX_IA                         (IAT_ARM_RANGE_BASE - 11)
 #define IAT_POX_FADDR                      (IAT_ARM_RANGE_BASE - 12)
-#define IAT_POX_FUNC_HASH                  (IAT_ARM_RANGE_BASE - 13)
+/* -13 (FUNC_HASH) and -15 (INPUT_HASH) are retired; do not reuse. */
 #define IAT_POX_INPUT_VALUE                (IAT_ARM_RANGE_BASE - 14)
-#define IAT_POX_INPUT_HASH                 (IAT_ARM_RANGE_BASE - 15)
 #define IAT_POX_OUT                        (IAT_ARM_RANGE_BASE - 16)
 
 /* Indicates that the boot status intentionally (i.e. the bootloader is not

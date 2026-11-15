@@ -36,16 +36,17 @@ config ATTEST_POX
       creation. The standalone PoX partition is independent
       (TFM_PARTITION_PROOF_OF_EXECUTION).
 
-config POX_SESSION_AUTH_ATT
-    bool "PoX session authentication on the attestation-partition path"
+config POX_REQUEST_AUTH_ATT
+    bool "PoX request authentication on the attestation-partition path"
     default n
     depends on ATTEST_POX
     help
       Enforce verifier-signed session credentials (session_id +
       ECDSA P-256 transcript signature) for TFM_ATTEST_GET_POX
-      requests, mirroring POX_SESSION_AUTH in the standalone PoX
+      requests, mirroring POX_REQUEST_AUTH in the standalone PoX
       partition but independently switchable. The attestation
-      partition keeps its own verifier key handle and nonce ring.
+      partition keeps its own verifier key handle and sequence
+      high-water mark.
       IAT services are unaffected either way.
 
 endif

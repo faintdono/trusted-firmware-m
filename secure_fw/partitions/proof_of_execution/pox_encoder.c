@@ -1,8 +1,15 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_encoder.c
  *
  * Encodes the PoX CBOR claims map from decoded IAT claims plus the
- * extension claims (faddr, func/input hashes, exec_output). CCA-only claims are guarded
+ * extension claims (faddr, input_value, exec_output). CCA-only claims are guarded
  * by #if ATTEST_TOKEN_PROFILE_ARM_CCA so the file also compiles under
  * the PSA_IOT_1 and PSA_2_0_0 profiles.
  */
@@ -16,7 +23,7 @@
 
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
-                               const struct ns_exec_measurement *meas,
+                               const struct ns_exec_input *exec_in,
                                const uint8_t   *exec_output,
                                size_t           exec_output_len,
                                const pox_session_ctx_t *sess,
@@ -24,7 +31,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
                                size_t           scratch_sz,
                                size_t          *encoded_len)
 {
-    if (!iat || !meas || !scratch || !encoded_len) {
+    if (!iat || !exec_in || !scratch || !encoded_len) {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -41,7 +48,7 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 
     /*
      * Claim ordering matches attest_pox_create_token() in attest_core.c:
-     *   faddr, func_hash, input_hash, [input_value], exec_output, nonce,
+     *   faddr, input_value, exec_output, nonce,
      *   then claim_query_funcs order:
      *     boot_seed (PSA_IOT/2_0_0), instance_id, implementation_id,
      *     caller_id (PSA_IOT/2_0_0), security_lifecycle, sw_components,
@@ -53,15 +60,10 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
 
     QCBOREncode_AddUInt64ToMapN(&ec, IAT_POX_FADDR, (uint64_t)faddr);
 
-    /* Pre-execution measurements, matching attest_add_measurement(). */
-    QCBOREncode_AddBytesToMapN(&ec, IAT_POX_FUNC_HASH,
-        (UsefulBufC){ meas->func_hash, sizeof(meas->func_hash) });
-    QCBOREncode_AddBytesToMapN(&ec, IAT_POX_INPUT_HASH,
-        (UsefulBufC){ meas->input_hash, sizeof(meas->input_hash) });
-    if (meas->has_input_value) {
-        QCBOREncode_AddBytesToMapN(&ec, IAT_POX_INPUT_VALUE,
-            (UsefulBufC){ meas->input_value, meas->input_value_len });
-    }
+    /* F's input as captured before it ran, matching
+     * attest_add_input_value(). */
+    QCBOREncode_AddBytesToMapN(&ec, IAT_POX_INPUT_VALUE,
+        (UsefulBufC){ exec_in->value, exec_in->len });
 
     /* Byte string of the whole attested value, matching
      * attest_add_execution_value() on the attestation-partition path. */
@@ -81,19 +83,9 @@ psa_status_t encode_pox_claims(const IATClaims *iat,
         /* SPM-supplied, cannot be forged by the NS caller */
         QCBOREncode_AddInt64ToMapN(&ec, POX_LABEL_CALLER_ID,
                                    (int64_t)sess->caller_id);
-#if POX_SESSION_AUTH
-        /* Verifier authorization signature, emitted only after it
-         * verified: makes the token self-contained evidence. */
-        if (sess->sess_sig != NULL && sess->sess_sig_len > 0) {
-            QCBOREncode_AddBytesToMapN(&ec, POX_LABEL_SESS_SIG,
-                (UsefulBufC){ sess->sess_sig, sess->sess_sig_len });
-        }
-#endif
-#if POX_SESSION_AUTH
+#if POX_REQUEST_AUTH
         QCBOREncode_AddUInt64ToMapN(&ec, POX_LABEL_BOOT_EPOCH,
                                     (uint64_t)sess->boot_epoch);
-#endif
-#if POX_SEQ_AUTH
         QCBOREncode_AddUInt64ToMapN(&ec, POX_LABEL_SEQ,
                                     (uint64_t)sess->seq);
 #endif

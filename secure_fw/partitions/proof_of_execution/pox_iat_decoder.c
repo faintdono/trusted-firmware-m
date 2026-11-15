@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_iat_decoder.c
  *
  * Decodes the CBOR payload of an IAT COSE_Sign1 token into an IATClaims

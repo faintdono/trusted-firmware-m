@@ -39,45 +39,33 @@ config POX_ALLOW_PLACEHOLDER_KEY
 
       NEVER enable this on a production device.
 
-config POX_SESSION_AUTH
-    bool "PoX session authentication (verifier-signed requests)"
+config POX_REQUEST_AUTH
+    bool "PoX request authentication (verifier-signed requests)"
     default y
     select TFM_PARTITION_INTERNAL_TRUSTED_STORAGE
     help
-      Two-phase protocol: the verifier signs each request transcript
-      (ver | session_id | nonce | faddr | boot epoch) with its ECDSA
-      P-256 private key, and the partition verifies it with the
+      The verifier signs each request transcript
+      (ver | session_id | nonce | faddr | boot epoch | seq) with its
+      ECDSA P-256 private key, and the partition verifies it with the
       embedded verifier public key before any PoX processing.
 
       Enforcement rules:
-        - Invalid signature -> request rejected, session ended.
-        - Replay            -> request rejected (bounded RAM nonce
-          ring, or monotonic seq in POX_SEQ_AUTH builds).
+        - Invalid signature -> request rejected.
+        - Replay            -> request rejected: the verifier assigns
+          each request a strictly increasing sequence number, and the
+          partition keeps only the per-boot high-water mark (4 bytes
+          of RAM).
 
       A monotonically increasing boot epoch counter is kept in ITS
       (one small write per boot - O(boots), never O(requests)) and
       bound into the signed transcript, so an authorization captured
-      before a reboot dies with that boot: cross-reboot replay is
-      structurally closed. The epoch is also emitted as a token claim
-      (POX_LABEL_BOOT_EPOCH).
+      before a reboot dies with that boot. The epoch is also emitted
+      as a token claim (POX_LABEL_BOOT_EPOCH).
 
       The partition stores no session secret (public key only). When
-      enabled, requests without session credentials are rejected with
-      PSA_ERROR_NOT_PERMITTED, so the NS caller must supply session_id
-      and sess_sig obtained from the verifier. The ITS service must be
-      in the dependencies list of tfm_proof_of_execution.yaml.
-
-config POX_NONCE_HISTORY
-    int "Nonce-reuse ring size (entries)"
-    default 16
-    depends on POX_SESSION_AUTH
-    help
-      Number of entries in the bounded RAM ring of SHA-256 nonce
-      digests used to reject nonce reuse within one boot ("prover's
-      book"). Each entry is 32 bytes; 16 entries = 512 bytes of SRAM.
-      Size it to at least the number of requests expected per boot
-      window in which replay must be detected device-side. The
-      verifier's book remains the authoritative replay defence.
+      enabled, requests without credentials are rejected with
+      PSA_ERROR_NOT_PERMITTED. The ITS service must be in the
+      dependencies list of tfm_proof_of_execution.yaml.
 
 config POX_LOG_ENABLE
     bool "PoX debug logging"
@@ -87,18 +75,5 @@ config POX_LOG_ENABLE
       messages (UART). Disable for benchmarking: with this off every
       log call compiles out entirely, so the instrumented build has
       no logging overhead versus the unmodified baseline.
-
-config POX_SEQ_AUTH
-    bool "Monotonic sequence anti-replay (replaces the nonce ring)"
-    default n
-    depends on POX_SESSION_AUTH
-    help
-      Transcript v3: the verifier assigns each request a strictly
-      increasing sequence number, bound into the signed transcript.
-      The partition keeps only the per-boot high-water mark (4 bytes
-      of RAM) and accepts a request iff its seq strictly exceeds it,
-      so there is no eviction window like the bounded nonce ring.
-      In-boot replay is covered by the seq; cross-boot replay by the
-      boot epoch that every session-auth build already binds.
 
 endif

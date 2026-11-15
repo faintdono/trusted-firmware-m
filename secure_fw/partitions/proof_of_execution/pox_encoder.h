@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
 #ifndef POX_ENCODER_H
 #define POX_ENCODER_H
 
@@ -9,7 +16,7 @@
 
 /**
  * @brief Encode the PoX CBOR payload: IAT claims plus the PoX
- *        extension (faddr, func/input hashes, exec_output) and
+ *        extension (faddr, input_value, exec_output) and
  *        session-auth claims.
  *
  * @param[in] sess             Validated session context; NULL emits
@@ -21,7 +28,7 @@
  */
 psa_status_t encode_pox_claims(const IATClaims *iat,
                                uintptr_t        faddr,
-                               const struct ns_exec_measurement *meas,
+                               const struct ns_exec_input *exec_in,
                                const uint8_t   *exec_output,
                                size_t           exec_output_len,
                                const pox_session_ctx_t *sess,

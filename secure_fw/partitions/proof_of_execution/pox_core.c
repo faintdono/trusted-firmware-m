@@ -1,4 +1,11 @@
 /*
+ * SPDX-FileCopyrightText: Copyright The TrustedFirmware-M Contributors
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+/*
  * pox_core.c
  *
  * Proof-of-Execution core logic; see pox.h for the flow.
@@ -68,7 +75,7 @@ static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
 }
 
 psa_status_t
-proof_of_execution(uintptr_t faddr, uint32_t func_len,
+proof_of_execution(uintptr_t faddr,
                    const uint8_t *input,  const uint32_t input_len,
                    uint8_t       *output, uint32_t       *output_len,
                    uint8_t *challenge_buf, size_t challenge_size,
@@ -92,14 +99,14 @@ proof_of_execution(uintptr_t faddr, uint32_t func_len,
 
     *token_size = token_buf_size;
     return pox_create_token(iat_token_buf, iat_token_size,
-                            faddr, func_len, input, input_len,
+                            faddr, input, input_len,
                             output, output_len,
                             challenge_buf, challenge_size, sess,
                             (uint8_t *)token_buf, token_size);
 }
 
 psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
-                               uintptr_t faddr, uint32_t func_len,
+                               uintptr_t faddr,
                                const uint8_t *input,  uint32_t input_len,
                                uint8_t       *output, uint32_t *output_len,
                                const uint8_t *challenge_buf,
@@ -132,13 +139,12 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
         return PSA_ERROR_CORRUPTION_DETECTED;
     }
 
-    /* Measure F's code and input in Secure state, right before F
-     * runs: F can rewrite both, and the token must show what it
-     * started from. */
-    struct ns_exec_measurement meas;
-    status = pox_ns_measure(faddr, func_len, input, input_len, &meas);
+    /* Copy F's input into Secure memory right before F runs: F can
+     * rewrite it, and the token must show what it started from. */
+    struct ns_exec_input exec_in;
+    status = pox_ns_capture_input(input, input_len, &exec_in);
     if (status != PSA_SUCCESS) {
-        POX_LOG_INF("[PoX] ERROR: pre-execution measurement failed (%d)\n",
+        POX_LOG_INF("[PoX] ERROR: input capture failed (%d)\n",
                    (int)status);
         return status;
     }
@@ -180,7 +186,7 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
     POX_LOG_INF("[PoX] Execution value: %u byte(s), first 0x%x\n",
                 (unsigned int)exec_output_len, (unsigned int)exec_output[0]);
 
-    status = encode_pox_claims(&claims, faddr, &meas,
+    status = encode_pox_claims(&claims, faddr, &exec_in,
                                exec_output, exec_output_len,
                                sess,
                                cbor_scratch, sizeof(cbor_scratch), &cbor_len);

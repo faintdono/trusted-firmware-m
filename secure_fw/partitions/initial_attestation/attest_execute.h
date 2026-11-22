@@ -41,6 +41,18 @@ struct ns_exec_snapshot {
  * a Secure address would be signed into the token. */
 bool attest_ns_buffer_ok(const void *p, uint32_t len);
 
+/**
+ * @brief True if faddr lies in the non-secure image's code region in
+ *        flash [NS_CODE_START, NS_CODE_LIMIT].
+ *
+ * F's code is not measured at run time; the token relies on the boot
+ * measurement of the non-secure image. That only holds for code in
+ * flash, which the non-secure world cannot rewrite. An F in RAM can be
+ * overwritten after boot while its address and the boot measurement
+ * stay the same, so such a request must be refused before F runs.
+ */
+bool attest_ns_faddr_ok(uintptr_t faddr);
+
 /* attest_ns_execute() refused to run: output buffer was not Non-Secure. Not a
  * value an attested function can return, so callers can fail the
  * request instead of attesting it. */

@@ -87,6 +87,13 @@ proof_of_execution(uintptr_t faddr,
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
+    /* F must be in non-secure flash: only there does the boot
+     * measurement in the token still describe the code that runs. */
+    if (!pox_ns_faddr_ok(faddr)) {
+        POX_LOG_INF("[PoX] ERROR: function address is not in NS flash\n");
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
     uint8_t iat_token_buf[ATT_MAX_TOKEN_SIZE];
     size_t  iat_token_size = 0;
 
@@ -137,6 +144,11 @@ psa_status_t pox_create_token(const uint8_t *iat_token_buf, size_t iat_token_sz,
         POX_LOG_INF("[PoX] ERROR: IAT nonce does not match the "
                    "authenticated challenge\n");
         return PSA_ERROR_CORRUPTION_DETECTED;
+    }
+
+    /* Checked here too: this function is also an entry point. */
+    if (!pox_ns_faddr_ok(faddr)) {
+        return PSA_ERROR_INVALID_ARGUMENT;
     }
 
     /* Copy F's input into Secure memory right before F runs: F can

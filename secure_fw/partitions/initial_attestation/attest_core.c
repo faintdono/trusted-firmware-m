@@ -829,6 +829,13 @@ attest_pox_create_token(uintptr_t faddr,
     int32_t cose_algorithm_id;
     int execute_value = 0;
 
+    /* F must be in non-secure flash: only there does the boot
+     * measurement in the token still describe the code that runs. */
+    if (!attest_ns_faddr_ok(faddr))
+    {
+        return PSA_ATTEST_ERR_INVALID_INPUT;
+    }
+
     attest_err = attest_get_t_cose_algorithm(&cose_algorithm_id);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS)
     {

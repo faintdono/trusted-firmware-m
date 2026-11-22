@@ -11,6 +11,7 @@
 #include <stddef.h>   /* NULL */
 #include <stdint.h>
 #include <string.h>   /* memset */
+#include "region_defs.h" /* NS_CODE_START, NS_CODE_LIMIT */
 
 bool pox_ns_buffer_ok(const void *p, uint32_t len)
 {
@@ -22,6 +23,15 @@ bool pox_ns_buffer_ok(const void *p, uint32_t len)
      * is the NS world's business. */
     return cmse_check_address_range((void *)p, (size_t)len,
                                     CMSE_NONSECURE) != NULL;
+}
+
+bool pox_ns_faddr_ok(uintptr_t faddr)
+{
+    /* Bit 0 is the Thumb bit, not part of the address. */
+    uintptr_t addr = faddr & ~(uintptr_t)1u;
+
+    return addr >= (uintptr_t)NS_CODE_START &&
+           addr <= (uintptr_t)NS_CODE_LIMIT;
 }
 
 int ns_execute(uintptr_t faddr, const uint8_t *input, uint32_t input_len,

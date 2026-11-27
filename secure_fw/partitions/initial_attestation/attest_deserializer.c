@@ -121,7 +121,7 @@ ser_status_t deserialize_ns_pox_call(const uint8_t *buf, size_t len,
 
         case POX_TLV_SESS_SIG:
             if (saw_sig) return SER_EMALFORMED;
-            if (l != POX_SESS_SIG_LEN) return SER_EMALFORMED;
+            if (!POX_SESS_CRED_LEN_OK(l)) return SER_EMALFORMED;
             out->sess_sig = val;
             out->sess_sig_len = l;
             saw_sig = true;

@@ -67,6 +67,31 @@ config POX_REQUEST_AUTH
       PSA_ERROR_NOT_PERMITTED. The ITS service must be in the
       dependencies list of tfm_proof_of_execution.yaml.
 
+config POX_SYMMETRIC_TOKEN
+    bool "Protect the PoX token with HMAC-SHA256 (COSE_Mac0)"
+    default n
+    depends on SYMMETRIC_INITIAL_ATTESTATION
+    help
+      By default the partition signs its token with its ECDSA P-256
+      key (COSE_Sign1), so any party holding the public key can check
+      it. With this option it computes HMAC-SHA256 (COSE_Mac0) under a
+      symmetric PoX key instead, the way Initial Attestation does with
+      a symmetric IAK. This removes the second ECDSA signature from each
+      request, but the Verifier must hold the key, so it could forge
+      tokens, and third parties cannot check them.
+
+config POX_SYMMETRIC_REQUEST_AUTH
+    bool "Authenticate requests with HMAC-SHA256 instead of ECDSA"
+    default n
+    depends on POX_REQUEST_AUTH
+    help
+      The Verifier tags each request transcript with HMAC-SHA256 under
+      a key it shares with the device (32-byte tag), instead of signing
+      it with ECDSA P-256 (64-byte signature). The check is far cheaper,
+      but the device must keep the key secret: anyone who extracts it
+      can authorize requests, while the ECDSA build holds only a public
+      key. Applies to both PoX paths.
+
 config POX_LOG_ENABLE
     bool "PoX debug logging"
     default y

@@ -60,6 +60,40 @@ static const uint8_t attest_verifier_placeholder_ref[65] = {
 };
 #endif
 
+#ifdef POX_SYMMETRIC_REQUEST_AUTH
+/*
+ * POX_SYMMETRIC_REQUEST_AUTH: the Verifier authenticates each request
+ * with HMAC-SHA256 under a key it shares with the device, instead of an
+ * ECDSA signature. The device must then keep this key secret: anyone
+ * who extracts it can authorize requests, unlike the public key above.
+ *
+ * PLACEHOLDER: SHA-256("PoX development request key"), public. Refused
+ * at runtime unless POX_ALLOW_PLACEHOLDER_KEY, like the public key.
+ * The same bytes must be in the other partition's copy and in the
+ * verifier's credential tool.
+ */
+#define ATTEST_REQUEST_PLACEHOLDER_KEY                      \
+    0x08, 0xDE, 0x59, 0x40, 0xC5, 0x4E, 0x96, 0xB4,       \
+    0xC3, 0x2F, 0x22, 0x2C, 0xFD, 0x8E, 0x88, 0x2F,       \
+    0xC6, 0x16, 0xF1, 0x7B, 0xC9, 0x08, 0x9A, 0x49,       \
+    0xC0, 0xCD, 0x65, 0xC3, 0x2A, 0x79, 0xFB, 0x1E
+
+/* ============================ EDIT BELOW ============================ */
+static const uint8_t ATTEST_REQUEST_KEY_BYTES[32] = {
+    ATTEST_REQUEST_PLACEHOLDER_KEY
+};
+/* ============================ EDIT ABOVE ============================ */
+
+#if !defined(POX_ALLOW_PLACEHOLDER_KEY)
+static const uint8_t attest_request_placeholder_ref[32] = {
+    ATTEST_REQUEST_PLACEHOLDER_KEY
+};
+#endif
+#define ATTEST_REQUEST_CRED_LEN  POX_SESS_MAC_LEN
+#else
+#define ATTEST_REQUEST_CRED_LEN  POX_SESS_SIG_LEN
+#endif /* POX_SYMMETRIC_REQUEST_AUTH */
+
 /* Zero means unusable: attest_session_authenticate() fails closed. */
 static psa_key_id_t verifier_key_handle = 0;
 
@@ -118,6 +152,34 @@ psa_status_t attest_session_init(void)
     /* Placeholder guard: refuse the known-public dev key unless
      * explicitly allowed. On refusal the handle stays 0 and every PoX
      * request is rejected (fail closed); IAT is unaffected. */
+#ifdef POX_SYMMETRIC_REQUEST_AUTH
+#if !defined(POX_ALLOW_PLACEHOLDER_KEY)
+    if (memcmp(ATTEST_REQUEST_KEY_BYTES, attest_request_placeholder_ref,
+               sizeof(ATTEST_REQUEST_KEY_BYTES)) == 0) {
+        POX_LOG_ERR("[Attest][PoX] FATAL: placeholder request key detected in "
+                   "production build. Replace ATTEST_REQUEST_KEY_BYTES.\n");
+        return PSA_ERROR_NOT_PERMITTED;
+    }
+#endif
+
+    if (verifier_key_handle != 0) {
+        (void)psa_destroy_key(verifier_key_handle);
+        verifier_key_handle = 0;
+    }
+
+    /* VOLATILE: a SECRET shared with the Verifier, re-imported every
+     * boot from the image, never stored in ITS. */
+    psa_set_key_lifetime(&attr, PSA_KEY_LIFETIME_VOLATILE);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_MESSAGE);
+    psa_set_key_algorithm(&attr, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_set_key_type(&attr, PSA_KEY_TYPE_HMAC);
+    psa_set_key_bits(&attr, 256);
+
+    status = psa_import_key(&attr, ATTEST_REQUEST_KEY_BYTES,
+                            sizeof(ATTEST_REQUEST_KEY_BYTES),
+                            &imported_id);
+    psa_reset_key_attributes(&attr);
+#else
 #if !defined(POX_ALLOW_PLACEHOLDER_KEY)
     if (memcmp(ATTEST_VERIFIER_PUBKEY_BYTES, attest_verifier_placeholder_ref,
                sizeof(ATTEST_VERIFIER_PUBKEY_BYTES)) == 0) {
@@ -147,6 +209,8 @@ psa_status_t attest_session_init(void)
                             sizeof(ATTEST_VERIFIER_PUBKEY_BYTES),
                             &imported_id);
     psa_reset_key_attributes(&attr);
+
+#endif /* POX_SYMMETRIC_REQUEST_AUTH */
 
     if (status != PSA_SUCCESS) {
         POX_LOG_ERR("[Attest][PoX] ERROR: verifier pubkey import failed "
@@ -190,7 +254,7 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
     if (view->session_id == NULL || view->sess_sig == NULL ||
         view->session_id_len < POX_SESSION_ID_MIN ||
         view->session_id_len > POX_SESSION_ID_MAX ||
-        view->sess_sig_len != POX_SESS_SIG_LEN ||
+        view->sess_sig_len != ATTEST_REQUEST_CRED_LEN ||
         view->challenge == NULL ||
         view->challenge_len < POX_CHALLENGE_LEN_MIN ||
         view->challenge_len > POX_CHALLENGE_LEN_MAX) {
@@ -230,11 +294,20 @@ psa_status_t attest_session_authenticate(const sec_pox_view_t *view)
     transcript[off++] = (uint8_t)(view->seq >> 16);
     transcript[off++] = (uint8_t)(view->seq >> 24);
 
+#ifdef POX_SYMMETRIC_REQUEST_AUTH
+    /* sess_sig is the 32-byte HMAC-SHA256 tag; psa_mac_verify compares
+     * it in constant time. */
+    status = psa_mac_verify(verifier_key_handle,
+                            PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                            transcript, off,
+                            view->sess_sig, view->sess_sig_len);
+#else
     /* sess_sig is 64-byte RAW r||s, not DER. */
     status = psa_verify_message(verifier_key_handle,
                                 PSA_ALG_ECDSA(PSA_ALG_SHA_256),
                                 transcript, off,
                                 view->sess_sig, view->sess_sig_len);
+#endif
     if (status != PSA_SUCCESS) {
         POX_LOG_ERR("[Attest][PoX] Session signature invalid (%d): "
                    "request rejected, session ended\n", (int)status);

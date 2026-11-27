@@ -20,7 +20,11 @@
 #include "psa/initial_attestation.h"
 #include "tfm_crypto_defs.h"
 
+#ifdef POX_SYMMETRIC_TOKEN
+#include "t_cose/t_cose_mac_compute.h"
+#else
 #include "t_cose/t_cose_sign1_sign.h"
+#endif
 #include "t_cose/t_cose_key.h"
 #include "t_cose/t_cose_common.h"
 #include "pox_log.h"
@@ -47,6 +51,38 @@ static psa_status_t get_iat(const uint8_t *challenge, size_t challenge_size,
     return status;
 }
 
+#ifdef POX_SYMMETRIC_TOKEN
+/* POX_SYMMETRIC_TOKEN: protect the token with HMAC-SHA256 (COSE_Mac0)
+ * under the partition's own symmetric key, the way Initial Attestation
+ * does with a symmetric IAK. The Verifier must then hold that key. */
+static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
+                                   uint8_t *report_buf, size_t report_buf_sz,
+                                   size_t *report_len)
+{
+    struct t_cose_mac_calculate_ctx mac_ctx;
+    struct t_cose_key mac_key;
+    UsefulBufC mac_out;
+    enum t_cose_err_t err;
+
+    mac_key.key.handle = (uint64_t)pox_get_signing_key_handle();
+
+    t_cose_mac_compute_init(&mac_ctx, 0, T_COSE_ALGORITHM_HMAC256);
+    t_cose_mac_set_computing_key(&mac_ctx, mac_key, NULL_Q_USEFUL_BUF_C);
+
+    err = t_cose_mac_compute(&mac_ctx,
+                             NULL_Q_USEFUL_BUF_C,
+                             (UsefulBufC){ payload, payload_len },
+                             (UsefulBuf){ report_buf, report_buf_sz },
+                             &mac_out);
+    if (err != T_COSE_SUCCESS) {
+        POX_LOG_INF("[PoX] ERROR: t_cose_mac_compute failed (%d)\n", (int)err);
+        return PSA_ERROR_GENERIC_ERROR;
+    }
+
+    *report_len = mac_out.len;
+    return PSA_SUCCESS;
+}
+#else
 static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
                                    uint8_t *report_buf, size_t report_buf_sz,
                                    size_t *report_len)
@@ -73,6 +109,7 @@ static psa_status_t sign_pox_token(const uint8_t *payload, size_t payload_len,
     *report_len = signed_out.len;
     return PSA_SUCCESS;
 }
+#endif /* POX_SYMMETRIC_TOKEN */
 
 psa_status_t
 proof_of_execution(uintptr_t faddr,

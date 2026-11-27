@@ -99,7 +99,11 @@ typedef enum {
 
 #define POX_SESSION_ID_MIN           (8u)
 #define POX_SESSION_ID_MAX           (32u)
-#define POX_SESS_SIG_LEN             (64u)
+#define POX_SESS_SIG_LEN             (64u)  /* ECDSA P-256 r||s */
+#define POX_SESS_MAC_LEN             (32u)  /* HMAC-SHA256 tag (POX_SYMMETRIC_REQUEST_AUTH) */
+/* The wire carries either; the secure service accepts only the one its
+ * build uses, so the non-secure side needs no build flag. */
+#define POX_SESS_CRED_LEN_OK(l)      ((l) == POX_SESS_SIG_LEN || (l) == POX_SESS_MAC_LEN)
 
 /* Largest input F may be given. The whole input is carried raw in the
  * token (INPUT_VALUE), so the verifier always sees what F ran on;
@@ -140,7 +144,7 @@ typedef struct {
     uint32_t       session_id_len;
     const uint8_t *sess_sig;      /* ECDSA P-256 raw r||s, 64 bytes;
                                      NULL if none */
-    uint32_t       sess_sig_len;  /* must be POX_SESS_SIG_LEN if present */
+    uint32_t       sess_sig_len;  /* POX_SESS_SIG_LEN or POX_SESS_MAC_LEN if present */
 
     /* Monotonic request counter (verifier-assigned), shared by all
      * sessions this boot. Emitted as the SEQ TLV iff has_seq; bound

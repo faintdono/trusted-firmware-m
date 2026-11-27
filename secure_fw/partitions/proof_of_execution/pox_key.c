@@ -12,6 +12,11 @@
  * private key into PSA Crypto as a VOLATILE key pair with SIGN usage,
  * re-imported on every boot.
  *
+ * With POX_SYMMETRIC_TOKEN the same 32 bytes are imported instead as an
+ * HMAC-SHA256 key with SIGN_MESSAGE usage, and the token is a
+ * COSE_Mac0. In the dev build these bytes equal TF-M's dummy IAK, so one
+ * key file verifies both approaches.
+ *
  * TO USE YOUR OWN KEY:
  *   1. openssl ecparam -name prime256v1 -genkey -noout -out pox_priv.pem
  *      openssl ec -in pox_priv.pem -text -noout
@@ -65,7 +70,8 @@ psa_key_id_t pox_get_signing_key_handle(void)
     return pox_volatile_key_handle;
 }
 
-/* Import a 32-byte P-256 scalar as a volatile key. */
+/* Import the 32-byte PoX key as a volatile key: a P-256 scalar for
+ * ECDSA, or an HMAC-SHA256 key with POX_SYMMETRIC_TOKEN. */
 static psa_status_t import_pox_key(const uint8_t *priv, size_t priv_len)
 {
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
@@ -79,11 +85,17 @@ static psa_status_t import_pox_key(const uint8_t *priv, size_t priv_len)
     /* VOLATILE: lives only for this boot. Do NOT call psa_set_key_id()
      * — ignored for volatile keys; the handle comes via imported_id. */
     psa_set_key_lifetime(&attr, PSA_KEY_LIFETIME_VOLATILE);
+#ifdef POX_SYMMETRIC_TOKEN
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attr, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_set_key_type(&attr, PSA_KEY_TYPE_HMAC);
+#else
     psa_set_key_usage_flags(&attr,
         PSA_KEY_USAGE_SIGN_HASH | PSA_KEY_USAGE_SIGN_MESSAGE);
     psa_set_key_algorithm(&attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
     psa_set_key_type(&attr,
         PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+#endif
     psa_set_key_bits(&attr, 256);
 
     status = psa_import_key(&attr, priv, priv_len, &imported_id);

@@ -10,6 +10,12 @@ endif()
 
 cmake_minimum_required(VERSION 3.21)
 
+# The MAC sources of t_cose are compiled only with symmetric Initial
+# Attestation (lib/ext/t_cose/tfm_t_cose.cmake).
+if (POX_SYMMETRIC_TOKEN AND NOT SYMMETRIC_INITIAL_ATTESTATION)
+    message(FATAL_ERROR "POX_SYMMETRIC_TOKEN requires SYMMETRIC_INITIAL_ATTESTATION=ON")
+endif()
+
 add_library(tfm_app_rot_partition_pox STATIC)
 
 add_dependencies(tfm_app_rot_partition_pox manifest_tool)
@@ -66,6 +72,8 @@ target_compile_definitions(tfm_app_rot_partition_pox
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
         $<$<BOOL:${POX_REQUEST_AUTH}>:POX_REQUEST_AUTH=1>
         $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
+        $<$<BOOL:${POX_SYMMETRIC_TOKEN}>:POX_SYMMETRIC_TOKEN=1>
+        $<$<BOOL:${POX_SYMMETRIC_REQUEST_AUTH}>:POX_SYMMETRIC_REQUEST_AUTH=1>
 )
 
 target_link_libraries(tfm_spm

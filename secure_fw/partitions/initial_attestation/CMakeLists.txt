@@ -76,6 +76,7 @@ target_compile_definitions(tfm_psa_rot_partition_attestation
         # standalone PoX partition's POX_REQUEST_AUTH, so the two paths
         # can be built authenticated/unauthenticated separately.
         $<$<BOOL:${POX_REQUEST_AUTH_ATT}>:POX_REQUEST_AUTH_ATT=1>
+        $<$<BOOL:${POX_SYMMETRIC_REQUEST_AUTH}>:POX_SYMMETRIC_REQUEST_AUTH=1>
         $<$<BOOL:${POX_ALLOW_PLACEHOLDER_KEY}>:POX_ALLOW_PLACEHOLDER_KEY=1>
         $<$<BOOL:${POX_LOG_ENABLE}>:POX_LOG_ENABLE=1>
 )

@@ -52,7 +52,7 @@ static ser_status_t validate_req(const ns_pox_call_req_t *req)
         if (has_sid) {
             if (req->session_id_len < POX_SESSION_ID_MIN ||
                 req->session_id_len > POX_SESSION_ID_MAX) return SER_EINVAL;
-            if (req->sess_sig_len != POX_SESS_SIG_LEN) return SER_EINVAL;
+            if (!POX_SESS_CRED_LEN_OK(req->sess_sig_len)) return SER_EINVAL;
         }
     }
 
@@ -106,7 +106,7 @@ ser_status_t pox_measure_ns_call(const ns_pox_call_req_t *req, size_t *needed)
     /* SESSION_ID + SESS_SIG TLVs (iff session present) */
     if (req->session_id != NULL) {
         if (add_ov(n, 8u + (size_t)req->session_id_len, &tmp)) return SER_E2BIG; n = tmp;
-        if (add_ov(n, 8u + (size_t)POX_SESS_SIG_LEN, &tmp))    return SER_E2BIG; n = tmp;
+        if (add_ov(n, 8u + (size_t)req->sess_sig_len, &tmp))  return SER_E2BIG; n = tmp;
     }
 
     /* SEQ TLV (iff present): 8 + 4 */
@@ -185,7 +185,7 @@ ser_status_t serialize_ns_pox_call(const ns_pox_call_req_t *req,
         if (st != SER_OK) return st;
 
         st = put_tlv(out, cap, &off, POX_TLV_SESS_SIG,
-                     req->sess_sig, POX_SESS_SIG_LEN, &tlv_count);
+                     req->sess_sig, req->sess_sig_len, &tlv_count);
         if (st != SER_OK) return st;
     }
 
